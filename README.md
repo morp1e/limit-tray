@@ -73,11 +73,16 @@ dotnet test
 The two providers expose their quota in completely different ways, so Lim'it reads them
 differently.
 
-**Claude** — polls `GET https://api.anthropic.com/api/oauth/usage` every 60 seconds, sending
+**Claude** — polls `GET https://api.anthropic.com/api/oauth/usage` every 120 seconds, sending
 the OAuth token from `~/.claude/.credentials.json` and the header
 `anthropic-beta: oauth-2025-04-20`. This is not a model call and does not consume your quota.
-The endpoint has its own rate limit, so Lim'it backs off exponentially (2, 4, 8 … capped at
-15 minutes) on HTTP 429.
+
+That endpoint is a shared resource: Claude Code itself calls it, so Lim'it is never the only
+client and will sometimes get HTTP 429 no matter how politely it asks. When that happens it
+backs off exponentially (2, 4, 8 … capped at 15 minutes) and keeps showing the last known
+numbers, marked with their real age, instead of blanking the panel. A 429 here means the
+usage *lookup* was throttled — it says nothing about your actual quota, and the UI wording is
+careful about that distinction.
 
 **Codex** — speaks JSON-RPC to `codex app-server` over stdio, calling
 `account/rateLimits/read` and listening for `account/rateLimits/updated` notifications. It

@@ -67,7 +67,7 @@ public class QuotaFormatterTests
         Assert.Equal("3 dk önce", QuotaFormatter.Age(Now.AddMinutes(-3), Now, Tr));
 
     [Theory]
-    [InlineData(HealthState.RateLimited, "Geçici olarak sınırlı")]
+    [InlineData(HealthState.RateLimited, "Sorgu sınırlandı, kotan dolmadı")]
     [InlineData(HealthState.AuthMissing, "Giriş gerekli")]
     [InlineData(HealthState.ProtocolBroken, "API değişmiş")]
     [InlineData(HealthState.Stale, "Veri eski")]
@@ -78,7 +78,7 @@ public class QuotaFormatterTests
     }
 
     [Theory]
-    [InlineData(HealthState.RateLimited, "Temporarily rate-limited")]
+    [InlineData(HealthState.RateLimited, "Usage check throttled, not your quota")]
     [InlineData(HealthState.AuthMissing, "Login required")]
     [InlineData(HealthState.ProtocolBroken, "API changed")]
     [InlineData(HealthState.Stale, "Data is stale")]

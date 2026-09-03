@@ -9,7 +9,7 @@ namespace LimitTray.Core.Store;
 /// </summary>
 public sealed class QuotaStore
 {
-    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(5);
 
     private readonly Dictionary<string, QuotaSnapshot> _snapshots = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _clock;
@@ -21,8 +21,29 @@ public sealed class QuotaStore
 
     public void Apply(QuotaSnapshot snapshot)
     {
-        lock (_gate) _snapshots[snapshot.Provider] = snapshot;
-        Changed?.Invoke(snapshot);
+        QuotaSnapshot applied;
+        lock (_gate)
+        {
+            if (snapshot.Session is null && snapshot.Weekly is null &&
+                _snapshots.TryGetValue(snapshot.Provider, out var previous) &&
+                (previous.Session is not null || previous.Weekly is not null))
+            {
+                applied = snapshot with
+                {
+                    Session = previous.Session,
+                    Weekly = previous.Weekly,
+                    FetchedAt = previous.FetchedAt,
+                };
+            }
+            else
+            {
+                applied = snapshot;
+            }
+
+            _snapshots[snapshot.Provider] = applied;
+        }
+
+        Changed?.Invoke(applied);
     }
 
     public QuotaSnapshot? Get(string provider)

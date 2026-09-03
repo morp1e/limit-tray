@@ -143,7 +143,7 @@ public class ClaudeCollectorTests
         await Take(Build(transport, "tok-abc", delays), 3);
 
         Assert.Equal(TimeSpan.FromMinutes(2), delays[0]);
-        Assert.Equal(TimeSpan.FromSeconds(60), delays[1]);
+        Assert.Equal(TimeSpan.FromSeconds(120), delays[1]);
     }
 
     [Fact]

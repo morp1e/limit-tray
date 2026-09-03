@@ -24,7 +24,7 @@ public sealed class Strings
         ageMinutes: "{0}m ago",
         ageHours: "{0}h ago",
         percentFormat: "{0}%",
-        rateLimited: "Temporarily rate-limited",
+        rateLimited: "Usage check throttled, not your quota",
         authMissing: "Login required",
         protocolBroken: "API changed",
         stale: "Data is stale");
@@ -48,7 +48,7 @@ public sealed class Strings
         ageMinutes: "{0} dk önce",
         ageHours: "{0} sa önce",
         percentFormat: "%{0}",
-        rateLimited: "Geçici olarak sınırlı",
+        rateLimited: "Sorgu sınırlandı, kotan dolmadı",
         authMissing: "Giriş gerekli",
         protocolBroken: "API değişmiş",
         stale: "Veri eski");

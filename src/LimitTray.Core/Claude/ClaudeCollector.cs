@@ -11,7 +11,7 @@ public sealed class ClaudeCollector : IQuotaCollector
     public const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
     public const string BetaHeader = "oauth-2025-04-20";
 
-    private static readonly TimeSpan NormalInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan NormalInterval = TimeSpan.FromSeconds(120);
     private static readonly TimeSpan FirstBackoff = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(15);
 
