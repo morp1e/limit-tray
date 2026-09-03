@@ -390,12 +390,15 @@ public class ClaudeCollectorTests
     [Fact]
     public async Task Watch_429_YieldsRateLimitedAndBacksOff()
     {
+        // Snapshot ONCE yayilir, bekleme SONRA gelir. Bu yuzden N gecikme gozlemek
+        // icin N+1 snapshot alinir; aksi halde son bekleme hic calismaz.
         var delays = new List<TimeSpan>();
         var transport = new FakeTransport(
             new HttpTransportResult(429, "{}"),
+            new HttpTransportResult(429, "{}"),
             new HttpTransportResult(429, "{}"));
 
-        var snaps = await Take(Build(transport, "tok-abc", delays), 2);
+        var snaps = await Take(Build(transport, "tok-abc", delays), 3);
 
         Assert.All(snaps, s => Assert.Equal(HealthState.RateLimited, s.Health));
         Assert.Equal(TimeSpan.FromMinutes(2), delays[0]);
@@ -431,9 +434,10 @@ public class ClaudeCollectorTests
         var delays = new List<TimeSpan>();
         var transport = new FakeTransport(
             new HttpTransportResult(429, "{}"),
+            new HttpTransportResult(200, """{"five_hour":{"utilization":5.0}}"""),
             new HttpTransportResult(200, """{"five_hour":{"utilization":5.0}}"""));
 
-        await Take(Build(transport, "tok-abc", delays), 2);
+        await Take(Build(transport, "tok-abc", delays), 3);
 
         Assert.Equal(TimeSpan.FromMinutes(2), delays[0]);
         Assert.Equal(TimeSpan.FromSeconds(60), delays[1]);
@@ -611,6 +615,10 @@ public sealed class ClaudeCollector : IQuotaCollector
         while (!ct.IsCancellationRequested)
         {
             var (snapshot, rateLimited) = await FetchOnce(ct).ConfigureAwait(false);
+
+            // SIRA KRITIK: once yayin, sonra bekleme. Tersi olursa uygulama
+            // acilista bir tam aralik boyunca bos kalir ve her deger bir cevrim
+            // geç gorunur. Bir testi gecirmek icin bu sira degistirilmez.
             yield return snapshot;
 
             if (ct.IsCancellationRequested) yield break;
@@ -693,7 +701,7 @@ Hata metinlerinde yalnız durum kodu ve istisna tipi yer alır; gövde ve token 
 - [ ] **Step 5: Testleri çalıştır, geçtiklerini gör**
 
 Run: `dotnet test tests/AgentQuotaTray.Tests --filter ClaudeCollectorTests`
-Expected: PASS — 9 test.
+Expected: PASS — 9 test (Task 1'in 4 testi ayrica gecmeye devam eder).
 
 - [ ] **Step 6: Commit**
 
@@ -1105,7 +1113,7 @@ public static class CodexRolloutReader
 - [ ] **Step 5: Testleri çalıştır, geçtiklerini gör**
 
 Run: `dotnet test tests/AgentQuotaTray.Tests --filter Codex`
-Expected: PASS — 9 test.
+Expected: PASS — 9 test (Task 1'in 4 testi ayrica gecmeye devam eder).
 
 - [ ] **Step 6: Commit**
 

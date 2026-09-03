@@ -56,7 +56,9 @@ public static class ClaudeUsageParser
         DateTimeOffset? resetsAt = null;
         if (el.TryGetProperty("resets_at", out var reset) &&
             reset.ValueKind == JsonValueKind.String &&
-            DateTimeOffset.TryParse(reset.GetString(), out var parsed))
+            DateTimeOffset.TryParse(reset.GetString(),
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
         {
             resetsAt = parsed;
         }

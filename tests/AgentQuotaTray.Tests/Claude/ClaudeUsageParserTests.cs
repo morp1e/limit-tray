@@ -44,6 +44,18 @@ public class ClaudeUsageParserTests
     }
 
     [Fact]
+    public void Parse_Iso8601ResetsAt_ParsesCorrectly()
+    {
+        var snap = ClaudeUsageParser.Parse(
+            """{"five_hour":{"utilization":14.0,"resets_at":"2026-09-03T23:09:59.727061+00:00"}}""",
+            Now);
+
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 3, 23, 9, 59, TimeSpan.Zero),
+            snap.Session!.ResetsAt!.Value.TruncateToSeconds());
+    }
+
+    [Fact]
     public void Parse_MissingFiveHour_IsProtocolBroken()
     {
         var snap = ClaudeUsageParser.Parse("""{"seven_day":{"utilization":12.0}}""", Now);
