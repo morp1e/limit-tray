@@ -1,11 +1,11 @@
-# agent-quota-tray
+# limit-tray
 
 Windows tray uygulamasi: Claude Code ve Codex CLI kota yuzdelerini tek panelde gosterir.
 
 ## Bu repoda gecerli kurallar
 
-- Tum mantik `src/AgentQuotaTray.Core` icindedir ve WPF'e bagimli degildir.
-  `src/AgentQuotaTray.App` yalnizca cizim yapar; oraya is mantigi yazilmaz.
+- Tum mantik `src/LimitTray.Core` icindedir ve WPF'e bagimli degildir.
+  `src/LimitTray.App` yalnizca cizim yapar; oraya is mantigi yazilmaz.
 - Hicbir hata durumu `%0` olarak gosterilmez. `%0` yalnizca saglayicidan gelen
   gercek degerdir. Hata durumlari `HealthState` ile tasinir.
 - Token loglanmaz, diske yazilmaz, istisna metnine sizmaz.

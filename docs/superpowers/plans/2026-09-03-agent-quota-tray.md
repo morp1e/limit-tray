@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- İki proje: `src/AgentQuotaTray.Core` (`net9.0`, WPF referansı **yasak**) ve `src/AgentQuotaTray.App` (`net9.0-windows`, `UseWPF` + `UseWindowsForms`). Testler yalnız Core'a bağlanır.
+- İki proje: `src/LimitTray.Core` (`net9.0`, WPF referansı **yasak**) ve `src/LimitTray.App` (`net9.0-windows`, `UseWPF` + `UseWindowsForms`). Testler yalnız Core'a bağlanır.
 - `<Nullable>enable</Nullable>` ve `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` her projede.
 - Harici NuGet bağımlılığı yok (test projesindeki xUnit hariç).
 - Token loglanmaz, diske yazılmaz, `ToString()`'e girmez, istisna metnine sızmaz.
@@ -26,14 +26,14 @@
 ### Task 1: Çözüm iskeleti, ortak model, Claude yanıt ayrıştırıcı
 
 **Files:**
-- Create: `AgentQuotaTray.sln`
-- Create: `src/AgentQuotaTray.Core/AgentQuotaTray.Core.csproj`
-- Create: `src/AgentQuotaTray.Core/Model/HealthState.cs`
-- Create: `src/AgentQuotaTray.Core/Model/QuotaWindow.cs`
-- Create: `src/AgentQuotaTray.Core/Model/QuotaSnapshot.cs`
-- Create: `src/AgentQuotaTray.Core/Claude/ClaudeUsageParser.cs`
-- Create: `tests/AgentQuotaTray.Tests/AgentQuotaTray.Tests.csproj`
-- Test: `tests/AgentQuotaTray.Tests/Claude/ClaudeUsageParserTests.cs`
+- Create: `LimitTray.sln`
+- Create: `src/LimitTray.Core/LimitTray.Core.csproj`
+- Create: `src/LimitTray.Core/Model/HealthState.cs`
+- Create: `src/LimitTray.Core/Model/QuotaWindow.cs`
+- Create: `src/LimitTray.Core/Model/QuotaSnapshot.cs`
+- Create: `src/LimitTray.Core/Claude/ClaudeUsageParser.cs`
+- Create: `tests/LimitTray.Tests/LimitTray.Tests.csproj`
+- Test: `tests/LimitTray.Tests/Claude/ClaudeUsageParserTests.cs`
 
 **Interfaces:**
 - Consumes: yok (ilk görev)
@@ -42,13 +42,13 @@
 - [ ] **Step 1: Çözümü ve projeleri oluştur**
 
 ```bash
-cd C:/Users/ozncd/Documents/Isler/agent-quota-tray
-dotnet new sln -n AgentQuotaTray
-dotnet new classlib -o src/AgentQuotaTray.Core -f net9.0
-dotnet new xunit  -o tests/AgentQuotaTray.Tests -f net9.0
-rm src/AgentQuotaTray.Core/Class1.cs tests/AgentQuotaTray.Tests/UnitTest1.cs
-dotnet sln add src/AgentQuotaTray.Core tests/AgentQuotaTray.Tests
-dotnet add tests/AgentQuotaTray.Tests reference src/AgentQuotaTray.Core
+cd C:/Users/ozncd/Documents/Isler/limit-tray
+dotnet new sln -n LimitTray
+dotnet new classlib -o src/LimitTray.Core -f net9.0
+dotnet new xunit  -o tests/LimitTray.Tests -f net9.0
+rm src/LimitTray.Core/Class1.cs tests/LimitTray.Tests/UnitTest1.cs
+dotnet sln add src/LimitTray.Core tests/LimitTray.Tests
+dotnet add tests/LimitTray.Tests reference src/LimitTray.Core
 ```
 
 Her iki `.csproj` içindeki `<PropertyGroup>` bloğuna ekle:
@@ -61,10 +61,10 @@ Her iki `.csproj` içindeki `<PropertyGroup>` bloğuna ekle:
 
 - [ ] **Step 2: Model tiplerini yaz**
 
-`src/AgentQuotaTray.Core/Model/HealthState.cs`:
+`src/LimitTray.Core/Model/HealthState.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Model;
+namespace LimitTray.Core.Model;
 
 public enum HealthState
 {
@@ -76,10 +76,10 @@ public enum HealthState
 }
 ```
 
-`src/AgentQuotaTray.Core/Model/QuotaWindow.cs`:
+`src/LimitTray.Core/Model/QuotaWindow.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Model;
+namespace LimitTray.Core.Model;
 
 /// <summary>Tek bir kota penceresi. Percent 0-100 araligindadir.</summary>
 public sealed record QuotaWindow(
@@ -88,10 +88,10 @@ public sealed record QuotaWindow(
     TimeSpan WindowLength);
 ```
 
-`src/AgentQuotaTray.Core/Model/QuotaSnapshot.cs`:
+`src/LimitTray.Core/Model/QuotaSnapshot.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Model;
+namespace LimitTray.Core.Model;
 
 public sealed record QuotaSnapshot(
     string Provider,
@@ -109,14 +109,14 @@ public sealed record QuotaSnapshot(
 
 - [ ] **Step 3: Ayrıştırıcı testlerini yaz (başarısız olacak)**
 
-`tests/AgentQuotaTray.Tests/Claude/ClaudeUsageParserTests.cs`:
+`tests/LimitTray.Tests/Claude/ClaudeUsageParserTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Claude;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Claude;
+using LimitTray.Core.Model;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Claude;
+namespace LimitTray.Tests.Claude;
 
 public class ClaudeUsageParserTests
 {
@@ -186,18 +186,18 @@ internal static class DateTimeOffsetTestExtensions
 
 - [ ] **Step 4: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests`
+Run: `dotnet test tests/LimitTray.Tests`
 Expected: FAIL — `ClaudeUsageParser` tipi bulunamıyor (CS0246).
 
 - [ ] **Step 5: Ayrıştırıcıyı yaz**
 
-`src/AgentQuotaTray.Core/Claude/ClaudeUsageParser.cs`:
+`src/LimitTray.Core/Claude/ClaudeUsageParser.cs`:
 
 ```csharp
 using System.Text.Json;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Claude;
+namespace LimitTray.Core.Claude;
 
 public static class ClaudeUsageParser
 {
@@ -264,13 +264,13 @@ public static class ClaudeUsageParser
 
 - [ ] **Step 6: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests`
+Run: `dotnet test tests/LimitTray.Tests`
 Expected: PASS — 4 test.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add AgentQuotaTray.sln src tests
+git add LimitTray.sln src tests
 git commit -m "feat(core): quota model and claude usage parser"
 ```
 
@@ -279,13 +279,13 @@ git commit -m "feat(core): quota model and claude usage parser"
 ### Task 2: Claude collector — token okuma, HTTP, hata durumları
 
 **Files:**
-- Create: `src/AgentQuotaTray.Core/Claude/ClaudeCredentialReader.cs`
-- Create: `src/AgentQuotaTray.Core/Http/IHttpTransport.cs`
-- Create: `src/AgentQuotaTray.Core/Http/HttpTransportResult.cs`
-- Create: `src/AgentQuotaTray.Core/Http/SystemHttpTransport.cs`
-- Create: `src/AgentQuotaTray.Core/Collectors/IQuotaCollector.cs`
-- Create: `src/AgentQuotaTray.Core/Claude/ClaudeCollector.cs`
-- Test: `tests/AgentQuotaTray.Tests/Claude/ClaudeCollectorTests.cs`
+- Create: `src/LimitTray.Core/Claude/ClaudeCredentialReader.cs`
+- Create: `src/LimitTray.Core/Http/IHttpTransport.cs`
+- Create: `src/LimitTray.Core/Http/HttpTransportResult.cs`
+- Create: `src/LimitTray.Core/Http/SystemHttpTransport.cs`
+- Create: `src/LimitTray.Core/Collectors/IQuotaCollector.cs`
+- Create: `src/LimitTray.Core/Claude/ClaudeCollector.cs`
+- Test: `tests/LimitTray.Tests/Claude/ClaudeCollectorTests.cs`
 
 **Interfaces:**
 - Consumes: `ClaudeUsageParser.Parse`, `QuotaSnapshot`, `HealthState` (Task 1)
@@ -293,15 +293,15 @@ git commit -m "feat(core): quota model and claude usage parser"
 
 - [ ] **Step 1: Testleri yaz (başarısız olacak)**
 
-`tests/AgentQuotaTray.Tests/Claude/ClaudeCollectorTests.cs`:
+`tests/LimitTray.Tests/Claude/ClaudeCollectorTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Claude;
-using AgentQuotaTray.Core.Http;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Claude;
+using LimitTray.Core.Http;
+using LimitTray.Core.Model;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Claude;
+namespace LimitTray.Tests.Claude;
 
 public class ClaudeCollectorTests
 {
@@ -457,23 +457,23 @@ public class ClaudeCollectorTests
 
 - [ ] **Step 2: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter ClaudeCollectorTests`
+Run: `dotnet test tests/LimitTray.Tests --filter ClaudeCollectorTests`
 Expected: FAIL — `IHttpTransport`, `ClaudeCollector`, `ClaudeCredentialReader` bulunamıyor.
 
 - [ ] **Step 3: Taşıma ve credential tiplerini yaz**
 
-`src/AgentQuotaTray.Core/Http/HttpTransportResult.cs`:
+`src/LimitTray.Core/Http/HttpTransportResult.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Http;
+namespace LimitTray.Core.Http;
 
 public sealed record HttpTransportResult(int StatusCode, string Body);
 ```
 
-`src/AgentQuotaTray.Core/Http/IHttpTransport.cs`:
+`src/LimitTray.Core/Http/IHttpTransport.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Http;
+namespace LimitTray.Core.Http;
 
 public interface IHttpTransport
 {
@@ -482,10 +482,10 @@ public interface IHttpTransport
 }
 ```
 
-`src/AgentQuotaTray.Core/Http/SystemHttpTransport.cs`:
+`src/LimitTray.Core/Http/SystemHttpTransport.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Http;
+namespace LimitTray.Core.Http;
 
 public sealed class SystemHttpTransport : IHttpTransport, IDisposable
 {
@@ -507,12 +507,12 @@ public sealed class SystemHttpTransport : IHttpTransport, IDisposable
 }
 ```
 
-`src/AgentQuotaTray.Core/Claude/ClaudeCredentialReader.cs`:
+`src/LimitTray.Core/Claude/ClaudeCredentialReader.cs`:
 
 ```csharp
 using System.Text.Json;
 
-namespace AgentQuotaTray.Core.Claude;
+namespace LimitTray.Core.Claude;
 
 /// <summary>
 /// Token'i her cagrida diskten taze okur; Claude Code onu yenilemis olabilir.
@@ -555,12 +555,12 @@ public sealed class ClaudeCredentialReader
 
 - [ ] **Step 4: Collector arayüzünü ve Claude collector'ı yaz**
 
-`src/AgentQuotaTray.Core/Collectors/IQuotaCollector.cs`:
+`src/LimitTray.Core/Collectors/IQuotaCollector.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Collectors;
+namespace LimitTray.Core.Collectors;
 
 public interface IQuotaCollector
 {
@@ -569,15 +569,15 @@ public interface IQuotaCollector
 }
 ```
 
-`src/AgentQuotaTray.Core/Claude/ClaudeCollector.cs`:
+`src/LimitTray.Core/Claude/ClaudeCollector.cs`:
 
 ```csharp
 using System.Runtime.CompilerServices;
-using AgentQuotaTray.Core.Collectors;
-using AgentQuotaTray.Core.Http;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Collectors;
+using LimitTray.Core.Http;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Claude;
+namespace LimitTray.Core.Claude;
 
 public sealed class ClaudeCollector : IQuotaCollector
 {
@@ -700,7 +700,7 @@ Hata metinlerinde yalnız durum kodu ve istisna tipi yer alır; gövde ve token 
 
 - [ ] **Step 5: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter ClaudeCollectorTests`
+Run: `dotnet test tests/LimitTray.Tests --filter ClaudeCollectorTests`
 Expected: PASS — 9 test (Task 1'in 4 testi ayrica gecmeye devam eder).
 
 - [ ] **Step 6: Commit**
@@ -715,10 +715,10 @@ git commit -m "feat(claude): usage collector with backoff and health states"
 ### Task 3: Codex yanıt ayrıştırıcıları — app-server ve rollout yedeği
 
 **Files:**
-- Create: `src/AgentQuotaTray.Core/Codex/CodexRateLimitsParser.cs`
-- Create: `src/AgentQuotaTray.Core/Codex/CodexRolloutReader.cs`
-- Test: `tests/AgentQuotaTray.Tests/Codex/CodexRateLimitsParserTests.cs`
-- Test: `tests/AgentQuotaTray.Tests/Codex/CodexRolloutReaderTests.cs`
+- Create: `src/LimitTray.Core/Codex/CodexRateLimitsParser.cs`
+- Create: `src/LimitTray.Core/Codex/CodexRolloutReader.cs`
+- Test: `tests/LimitTray.Tests/Codex/CodexRateLimitsParserTests.cs`
+- Test: `tests/LimitTray.Tests/Codex/CodexRolloutReaderTests.cs`
 
 **Interfaces:**
 - Consumes: `QuotaSnapshot`, `QuotaWindow`, `HealthState` (Task 1)
@@ -726,14 +726,14 @@ git commit -m "feat(claude): usage collector with backoff and health states"
 
 - [ ] **Step 1: Testleri yaz (başarısız olacak)**
 
-`tests/AgentQuotaTray.Tests/Codex/CodexRateLimitsParserTests.cs`:
+`tests/LimitTray.Tests/Codex/CodexRateLimitsParserTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Codex;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Codex;
+using LimitTray.Core.Model;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Codex;
+namespace LimitTray.Tests.Codex;
 
 public class CodexRateLimitsParserTests
 {
@@ -802,14 +802,14 @@ public class CodexRateLimitsParserTests
 }
 ```
 
-`tests/AgentQuotaTray.Tests/Codex/CodexRolloutReaderTests.cs`:
+`tests/LimitTray.Tests/Codex/CodexRolloutReaderTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Codex;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Codex;
+using LimitTray.Core.Model;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Codex;
+namespace LimitTray.Tests.Codex;
 
 public class CodexRolloutReaderTests : IDisposable
 {
@@ -890,18 +890,18 @@ public class CodexRolloutReaderTests : IDisposable
 
 - [ ] **Step 2: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter Codex`
+Run: `dotnet test tests/LimitTray.Tests --filter Codex`
 Expected: FAIL — `CodexRateLimitsParser` ve `CodexRolloutReader` bulunamıyor.
 
 - [ ] **Step 3: app-server ayrıştırıcısını yaz**
 
-`src/AgentQuotaTray.Core/Codex/CodexRateLimitsParser.cs`:
+`src/LimitTray.Core/Codex/CodexRateLimitsParser.cs`:
 
 ```csharp
 using System.Text.Json;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Codex;
+namespace LimitTray.Core.Codex;
 
 public static class CodexRateLimitsParser
 {
@@ -1003,13 +1003,13 @@ public static class CodexRateLimitsParser
 
 - [ ] **Step 4: Rollout yedek okuyucusunu yaz**
 
-`src/AgentQuotaTray.Core/Codex/CodexRolloutReader.cs`:
+`src/LimitTray.Core/Codex/CodexRolloutReader.cs`:
 
 ```csharp
 using System.Text.Json;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Codex;
+namespace LimitTray.Core.Codex;
 
 /// <summary>
 /// app-server calismadiginda son bilinen kotayi rollout dosyalarindan okur.
@@ -1112,7 +1112,7 @@ public static class CodexRolloutReader
 
 - [ ] **Step 5: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter Codex`
+Run: `dotnet test tests/LimitTray.Tests --filter Codex`
 Expected: PASS — 9 test (Task 1'in 4 testi ayrica gecmeye devam eder).
 
 - [ ] **Step 6: Commit**
@@ -1127,12 +1127,12 @@ git commit -m "feat(codex): app-server and rollout rate limit parsers"
 ### Task 4: Codex collector — ikili bulucu ve app-server oturumu
 
 **Files:**
-- Create: `src/AgentQuotaTray.Core/Codex/CodexBinaryLocator.cs`
-- Create: `src/AgentQuotaTray.Core/Process/IJsonRpcProcess.cs`
-- Create: `src/AgentQuotaTray.Core/Process/StdioJsonRpcProcess.cs`
-- Create: `src/AgentQuotaTray.Core/Codex/CodexCollector.cs`
-- Test: `tests/AgentQuotaTray.Tests/Codex/CodexBinaryLocatorTests.cs`
-- Test: `tests/AgentQuotaTray.Tests/Codex/CodexCollectorTests.cs`
+- Create: `src/LimitTray.Core/Codex/CodexBinaryLocator.cs`
+- Create: `src/LimitTray.Core/Process/IJsonRpcProcess.cs`
+- Create: `src/LimitTray.Core/Process/StdioJsonRpcProcess.cs`
+- Create: `src/LimitTray.Core/Codex/CodexCollector.cs`
+- Test: `tests/LimitTray.Tests/Codex/CodexBinaryLocatorTests.cs`
+- Test: `tests/LimitTray.Tests/Codex/CodexCollectorTests.cs`
 
 **Interfaces:**
 - Consumes: `CodexRateLimitsParser.ParseAppServer`, `CodexRolloutReader.ReadLatest` (Task 3); `IQuotaCollector` (Task 2)
@@ -1140,14 +1140,14 @@ git commit -m "feat(codex): app-server and rollout rate limit parsers"
 
 - [ ] **Step 1: İkili bulucu testini yaz**
 
-`tests/AgentQuotaTray.Tests/Codex/CodexBinaryLocatorTests.cs`:
+`tests/LimitTray.Tests/Codex/CodexBinaryLocatorTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Codex;
-using AgentQuotaTray.Core.Process;
+using LimitTray.Core.Codex;
+using LimitTray.Core.Process;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Codex;
+namespace LimitTray.Tests.Codex;
 
 public class CodexBinaryLocatorTests
 {
@@ -1187,16 +1187,16 @@ public class CodexBinaryLocatorTests
 
 - [ ] **Step 2: Collector testlerini yaz**
 
-`tests/AgentQuotaTray.Tests/Codex/CodexCollectorTests.cs`:
+`tests/LimitTray.Tests/Codex/CodexCollectorTests.cs`:
 
 ```csharp
 using System.Text.Json;
-using AgentQuotaTray.Core.Codex;
-using AgentQuotaTray.Core.Model;
-using AgentQuotaTray.Core.Process;
+using LimitTray.Core.Codex;
+using LimitTray.Core.Model;
+using LimitTray.Core.Process;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Codex;
+namespace LimitTray.Tests.Codex;
 
 public class CodexCollectorTests
 {
@@ -1388,15 +1388,15 @@ public class CodexCollectorTests
 
 - [ ] **Step 3: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter Codex`
+Run: `dotnet test tests/LimitTray.Tests --filter Codex`
 Expected: FAIL — `CodexBinaryLocator`, `IJsonRpcProcess`, `CodexCollector` bulunamıyor.
 
 - [ ] **Step 4: İkili bulucuyu yaz**
 
-`src/AgentQuotaTray.Core/Codex/CodexBinaryLocator.cs`:
+`src/LimitTray.Core/Codex/CodexBinaryLocator.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Codex;
+namespace LimitTray.Core.Codex;
 
 /// <summary>
 /// Windows'ta PATH'teki `codex` bir npm shim'idir ve dogrudan surec olarak
@@ -1427,10 +1427,10 @@ public static class CodexBinaryLocator
 
 - [ ] **Step 5: Süreç arayüzünü ve gerçek uygulamasını yaz**
 
-`src/AgentQuotaTray.Core/Process/IJsonRpcProcess.cs`:
+`src/LimitTray.Core/Process/IJsonRpcProcess.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Process;
+namespace LimitTray.Core.Process;
 
 public interface IJsonRpcProcess : IDisposable
 {
@@ -1440,14 +1440,14 @@ public interface IJsonRpcProcess : IDisposable
 }
 ```
 
-`src/AgentQuotaTray.Core/Process/StdioJsonRpcProcess.cs`:
+`src/LimitTray.Core/Process/StdioJsonRpcProcess.cs`:
 
 ```csharp
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace AgentQuotaTray.Core.Process;
+namespace LimitTray.Core.Process;
 
 public sealed class StdioJsonRpcProcess : IJsonRpcProcess
 {
@@ -1527,17 +1527,17 @@ public sealed class StdioJsonRpcProcess : IJsonRpcProcess
 
 - [ ] **Step 6: Codex collector'ı yaz**
 
-`src/AgentQuotaTray.Core/Codex/CodexCollector.cs`:
+`src/LimitTray.Core/Codex/CodexCollector.cs`:
 
 ```csharp
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using AgentQuotaTray.Core.Collectors;
-using AgentQuotaTray.Core.Model;
-using AgentQuotaTray.Core.Process;
+using LimitTray.Core.Collectors;
+using LimitTray.Core.Model;
+using LimitTray.Core.Process;
 
-namespace AgentQuotaTray.Core.Codex;
+namespace LimitTray.Core.Codex;
 
 public sealed class CodexCollector : IQuotaCollector
 {
@@ -1711,7 +1711,7 @@ public sealed class CodexCollector : IQuotaCollector
 
 - [ ] **Step 7: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter Codex`
+Run: `dotnet test tests/LimitTray.Tests --filter Codex`
 Expected: PASS — 19 test (Task 3'ün 9'u + bu görevin 10'u).
 
 - [ ] **Step 8: Commit**
@@ -1726,8 +1726,8 @@ git commit -m "feat(codex): app-server collector with restart and file fallback"
 ### Task 5: QuotaStore — tazelik yönetimi ve olay yayını
 
 **Files:**
-- Create: `src/AgentQuotaTray.Core/Store/QuotaStore.cs`
-- Test: `tests/AgentQuotaTray.Tests/Store/QuotaStoreTests.cs`
+- Create: `src/LimitTray.Core/Store/QuotaStore.cs`
+- Test: `tests/LimitTray.Tests/Store/QuotaStoreTests.cs`
 
 **Interfaces:**
 - Consumes: `QuotaSnapshot`, `HealthState` (Task 1); `IQuotaCollector` (Task 2)
@@ -1735,14 +1735,14 @@ git commit -m "feat(codex): app-server collector with restart and file fallback"
 
 - [ ] **Step 1: Testleri yaz (başarısız olacak)**
 
-`tests/AgentQuotaTray.Tests/Store/QuotaStoreTests.cs`:
+`tests/LimitTray.Tests/Store/QuotaStoreTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Model;
-using AgentQuotaTray.Core.Store;
+using LimitTray.Core.Model;
+using LimitTray.Core.Store;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Store;
+namespace LimitTray.Tests.Store;
 
 public class QuotaStoreTests
 {
@@ -1843,17 +1843,17 @@ public class QuotaStoreTests
 
 - [ ] **Step 2: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter QuotaStoreTests`
+Run: `dotnet test tests/LimitTray.Tests --filter QuotaStoreTests`
 Expected: FAIL — `QuotaStore` bulunamıyor.
 
 - [ ] **Step 3: QuotaStore'u yaz**
 
-`src/AgentQuotaTray.Core/Store/QuotaStore.cs`:
+`src/LimitTray.Core/Store/QuotaStore.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Store;
+namespace LimitTray.Core.Store;
 
 /// <summary>
 /// Son snapshot'lari tutar ve yasa gore Fresh -> Stale gecisini yonetir.
@@ -1914,7 +1914,7 @@ public sealed class QuotaStore
 
 - [ ] **Step 4: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter QuotaStoreTests`
+Run: `dotnet test tests/LimitTray.Tests --filter QuotaStoreTests`
 Expected: PASS — 7 test.
 
 - [ ] **Step 5: Commit**
@@ -1929,9 +1929,9 @@ git commit -m "feat(store): quota store with staleness transitions"
 ### Task 6: Sunum mantığı — biçimlendirme ve renk eşikleri
 
 **Files:**
-- Create: `src/AgentQuotaTray.Core/Presentation/QuotaSeverity.cs`
-- Create: `src/AgentQuotaTray.Core/Presentation/QuotaFormatter.cs`
-- Test: `tests/AgentQuotaTray.Tests/Presentation/QuotaFormatterTests.cs`
+- Create: `src/LimitTray.Core/Presentation/QuotaSeverity.cs`
+- Create: `src/LimitTray.Core/Presentation/QuotaFormatter.cs`
+- Test: `tests/LimitTray.Tests/Presentation/QuotaFormatterTests.cs`
 
 **Interfaces:**
 - Consumes: `QuotaSnapshot`, `QuotaWindow`, `HealthState` (Task 1)
@@ -1939,14 +1939,14 @@ git commit -m "feat(store): quota store with staleness transitions"
 
 - [ ] **Step 1: Testleri yaz (başarısız olacak)**
 
-`tests/AgentQuotaTray.Tests/Presentation/QuotaFormatterTests.cs`:
+`tests/LimitTray.Tests/Presentation/QuotaFormatterTests.cs`:
 
 ```csharp
-using AgentQuotaTray.Core.Model;
-using AgentQuotaTray.Core.Presentation;
+using LimitTray.Core.Model;
+using LimitTray.Core.Presentation;
 using Xunit;
 
-namespace AgentQuotaTray.Tests.Presentation;
+namespace LimitTray.Tests.Presentation;
 
 public class QuotaFormatterTests
 {
@@ -2098,15 +2098,15 @@ public class QuotaFormatterTests
 
 - [ ] **Step 2: Testleri çalıştır, başarısız olduklarını gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter QuotaFormatterTests`
+Run: `dotnet test tests/LimitTray.Tests --filter QuotaFormatterTests`
 Expected: FAIL — `QuotaFormatter` bulunamıyor.
 
 - [ ] **Step 3: Sunum tiplerini yaz**
 
-`src/AgentQuotaTray.Core/Presentation/QuotaSeverity.cs`:
+`src/LimitTray.Core/Presentation/QuotaSeverity.cs`:
 
 ```csharp
-namespace AgentQuotaTray.Core.Presentation;
+namespace LimitTray.Core.Presentation;
 
 public enum QuotaSeverity
 {
@@ -2116,14 +2116,14 @@ public enum QuotaSeverity
 }
 ```
 
-`src/AgentQuotaTray.Core/Presentation/QuotaFormatter.cs`:
+`src/LimitTray.Core/Presentation/QuotaFormatter.cs`:
 
 ```csharp
 using System.Globalization;
 using System.Text;
-using AgentQuotaTray.Core.Model;
+using LimitTray.Core.Model;
 
-namespace AgentQuotaTray.Core.Presentation;
+namespace LimitTray.Core.Presentation;
 
 public static class QuotaFormatter
 {
@@ -2240,7 +2240,7 @@ public static class QuotaFormatter
 
 - [ ] **Step 4: Testleri çalıştır, geçtiklerini gör**
 
-Run: `dotnet test tests/AgentQuotaTray.Tests --filter QuotaFormatterTests`
+Run: `dotnet test tests/LimitTray.Tests --filter QuotaFormatterTests`
 Expected: PASS — 26 test (Theory satırları dahil).
 
 - [ ] **Step 5: Commit**
@@ -2255,13 +2255,13 @@ git commit -m "feat(presentation): quota formatting and severity thresholds"
 ### Task 7: WPF uygulaması — tray simgesi ve popup
 
 **Files:**
-- Create: `src/AgentQuotaTray.App/AgentQuotaTray.App.csproj`
-- Create: `src/AgentQuotaTray.App/App.xaml`
-- Create: `src/AgentQuotaTray.App/App.xaml.cs`
-- Create: `src/AgentQuotaTray.App/TrayIconRenderer.cs`
-- Create: `src/AgentQuotaTray.App/QuotaPopup.xaml`
-- Create: `src/AgentQuotaTray.App/QuotaPopup.xaml.cs`
-- Modify: `AgentQuotaTray.sln`
+- Create: `src/LimitTray.App/LimitTray.App.csproj`
+- Create: `src/LimitTray.App/App.xaml`
+- Create: `src/LimitTray.App/App.xaml.cs`
+- Create: `src/LimitTray.App/TrayIconRenderer.cs`
+- Create: `src/LimitTray.App/QuotaPopup.xaml`
+- Create: `src/LimitTray.App/QuotaPopup.xaml.cs`
+- Modify: `LimitTray.sln`
 
 **Interfaces:**
 - Consumes: `QuotaStore` (Task 5); `QuotaFormatter`, `QuotaSeverity` (Task 6); `ClaudeCollector` (Task 2); `CodexCollector`, `CodexBinaryLocator`, `CodexRolloutReader` (Tasks 3-4)
@@ -2272,14 +2272,14 @@ Bu görev UI'dir; mantık Core'da test edilmiştir, burada birim testi yoktur. D
 - [ ] **Step 1: WPF projesini oluştur**
 
 ```bash
-cd C:/Users/ozncd/Documents/Isler/agent-quota-tray
-dotnet new wpf -o src/AgentQuotaTray.App -f net9.0
-dotnet sln add src/AgentQuotaTray.App
-dotnet add src/AgentQuotaTray.App reference src/AgentQuotaTray.Core
-rm src/AgentQuotaTray.App/MainWindow.xaml src/AgentQuotaTray.App/MainWindow.xaml.cs
+cd C:/Users/ozncd/Documents/Isler/limit-tray
+dotnet new wpf -o src/LimitTray.App -f net9.0
+dotnet sln add src/LimitTray.App
+dotnet add src/LimitTray.App reference src/LimitTray.Core
+rm src/LimitTray.App/MainWindow.xaml src/LimitTray.App/MainWindow.xaml.cs
 ```
 
-`src/AgentQuotaTray.App/AgentQuotaTray.App.csproj` içindeki `<PropertyGroup>`:
+`src/LimitTray.App/LimitTray.App.csproj` içindeki `<PropertyGroup>`:
 
 ```xml
 <OutputType>WinExe</OutputType>
@@ -2293,14 +2293,14 @@ rm src/AgentQuotaTray.App/MainWindow.xaml src/AgentQuotaTray.App/MainWindow.xaml
 
 - [ ] **Step 2: Simge çizicisini yaz**
 
-`src/AgentQuotaTray.App/TrayIconRenderer.cs`:
+`src/LimitTray.App/TrayIconRenderer.cs`:
 
 ```csharp
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using AgentQuotaTray.Core.Presentation;
+using LimitTray.Core.Presentation;
 
-namespace AgentQuotaTray.App;
+namespace LimitTray.App;
 
 /// <summary>En yuksek yuzdeyi halka olarak cizer. Deger yoksa soru isareti cizer.</summary>
 public static class TrayIconRenderer
@@ -2359,10 +2359,10 @@ public static class TrayIconRenderer
 
 - [ ] **Step 3: Popup penceresini yaz**
 
-`src/AgentQuotaTray.App/QuotaPopup.xaml`:
+`src/LimitTray.App/QuotaPopup.xaml`:
 
 ```xml
-<Window x:Class="AgentQuotaTray.App.QuotaPopup"
+<Window x:Class="LimitTray.App.QuotaPopup"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Agent Quota" Width="320" SizeToContent="Height"
@@ -2376,16 +2376,16 @@ public static class TrayIconRenderer
 </Window>
 ```
 
-`src/AgentQuotaTray.App/QuotaPopup.xaml.cs`:
+`src/LimitTray.App/QuotaPopup.xaml.cs`:
 
 ```csharp
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using AgentQuotaTray.Core.Model;
-using AgentQuotaTray.Core.Presentation;
+using LimitTray.Core.Model;
+using LimitTray.Core.Presentation;
 
-namespace AgentQuotaTray.App;
+namespace LimitTray.App;
 
 public partial class QuotaPopup : Window
 {
@@ -2521,29 +2521,29 @@ public partial class QuotaPopup : Window
 
 - [ ] **Step 4: Uygulama giriş noktasını (composition root) yaz**
 
-`src/AgentQuotaTray.App/App.xaml`:
+`src/LimitTray.App/App.xaml`:
 
 ```xml
-<Application x:Class="AgentQuotaTray.App.App"
+<Application x:Class="LimitTray.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Startup="OnStartup" ShutdownMode="OnExplicitShutdown" />
 ```
 
-`src/AgentQuotaTray.App/App.xaml.cs`:
+`src/LimitTray.App/App.xaml.cs`:
 
 ```csharp
 using System.Windows;
 using System.Windows.Forms;
-using AgentQuotaTray.Core.Claude;
-using AgentQuotaTray.Core.Codex;
-using AgentQuotaTray.Core.Collectors;
-using AgentQuotaTray.Core.Http;
-using AgentQuotaTray.Core.Presentation;
-using AgentQuotaTray.Core.Process;
-using AgentQuotaTray.Core.Store;
+using LimitTray.Core.Claude;
+using LimitTray.Core.Codex;
+using LimitTray.Core.Collectors;
+using LimitTray.Core.Http;
+using LimitTray.Core.Presentation;
+using LimitTray.Core.Process;
+using LimitTray.Core.Store;
 
-namespace AgentQuotaTray.App;
+namespace LimitTray.App;
 
 public partial class App : System.Windows.Application
 {
@@ -2663,7 +2663,7 @@ Expected: 0 hata, 0 uyarı (uyarılar hata sayılır).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src AgentQuotaTray.sln
+git add src LimitTray.sln
 git commit -m "feat(app): wpf tray icon and quota popup"
 ```
 
@@ -2688,7 +2688,7 @@ Expected: PASS — tüm testler, 0 başarısız.
 
 - [ ] **Step 2: Uygulamayı çalıştır ve gerçek veriyi gözle**
 
-Run: `dotnet run --project src/AgentQuotaTray.App`
+Run: `dotnet run --project src/LimitTray.App`
 
 Doğrulanacaklar — hepsi gözlenmeli, varsayılmamalı:
 1. Görev çubuğunda halka simgesi belirir.
@@ -2727,8 +2727,8 @@ Windows tray uygulamasi: Claude Code ve Codex CLI kota yuzdelerini tek panelde g
 
 ## Bu repoda gecerli kurallar
 
-- Tum mantik `src/AgentQuotaTray.Core` icindedir ve WPF'e bagimli degildir.
-  `src/AgentQuotaTray.App` yalnizca cizim yapar; oraya is mantigi yazilmaz.
+- Tum mantik `src/LimitTray.Core` icindedir ve WPF'e bagimli degildir.
+  `src/LimitTray.App` yalnizca cizim yapar; oraya is mantigi yazilmaz.
 - Hicbir hata durumu `%0` olarak gosterilmez. `%0` yalnizca saglayicidan gelen
   gercek degerdir. Hata durumlari `HealthState` ile tasinir.
 - Token loglanmaz, diske yazilmaz, istisna metnine sizmaz.
@@ -2757,7 +2757,7 @@ cubugunda gosterir. Oturum acmaya gerek yoktur.
 
 ## Calistirma
 
-    dotnet run --project src/AgentQuotaTray.App
+    dotnet run --project src/LimitTray.App
 
 ## Test
 

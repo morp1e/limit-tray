@@ -189,8 +189,8 @@ agent-quota-tray/
   AGENTS.md            # kanonik proje kuralları
   CLAUDE.md            # @AGENTS.md köprüsü
   docs/specs/          # bu dosya
-  src/AgentQuotaTray/  # WPF uygulaması
-  tests/AgentQuotaTray.Tests/
+  src/LimitTray/  # WPF uygulaması
+  tests/LimitTray.Tests/
 ```
 
 Hedef: .NET 9 / WPF (makinede `9.0.310` SDK ve `WindowsDesktop 9.0.19` runtime
