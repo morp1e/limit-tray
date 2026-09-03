@@ -4,3 +4,13 @@ obj/
 *.suo
 .vs/
 /publish/
+
+# Never commit credentials or secrets
+*.credentials.json
+.credentials.json
+.env
+.env.*
+*.key
+*.pem
+*.token
+*secret*

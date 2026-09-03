@@ -42,7 +42,7 @@
 - [ ] **Step 1: Çözümü ve projeleri oluştur**
 
 ```bash
-cd C:/Users/ozncd/Documents/Isler/limit-tray
+cd <repo-root>
 dotnet new sln -n LimitTray
 dotnet new classlib -o src/LimitTray.Core -f net9.0
 dotnet new xunit  -o tests/LimitTray.Tests -f net9.0
@@ -2272,7 +2272,7 @@ Bu görev UI'dir; mantık Core'da test edilmiştir, burada birim testi yoktur. D
 - [ ] **Step 1: WPF projesini oluştur**
 
 ```bash
-cd C:/Users/ozncd/Documents/Isler/limit-tray
+cd <repo-root>
 dotnet new wpf -o src/LimitTray.App -f net9.0
 dotnet sln add src/LimitTray.App
 dotnet add src/LimitTray.App reference src/LimitTray.Core
