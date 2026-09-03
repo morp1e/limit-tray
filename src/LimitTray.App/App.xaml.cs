@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,10 +22,11 @@ public partial class App : System.Windows.Application
     private QuotaPopup? _popup;
     private SystemHttpTransport? _transport;
     private System.Windows.Threading.DispatcherTimer? _stalenessTimer;
+    private readonly Strings _strings = Strings.ForCulture(CultureInfo.CurrentUICulture);
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
-        _popup = new QuotaPopup();
+        _popup = new QuotaPopup(_strings);
 
         _trayIcon = new NotifyIcon
         {
@@ -35,7 +37,7 @@ public partial class App : System.Windows.Application
         _trayIcon.Click += (_, _) => TogglePopup();
 
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Cikis", null, (_, _) => Shutdown());
+        menu.Items.Add(_strings.Exit, null, (_, _) => Shutdown());
         _trayIcon.ContextMenuStrip = menu;
 
         _store.Changed += _ => Dispatcher.Invoke(UpdateTray);
@@ -102,7 +104,7 @@ public partial class App : System.Windows.Application
             QuotaFormatter.HasUnhealthy(snapshots));
         old?.Dispose();
 
-        var tooltip = QuotaFormatter.Tooltip(snapshots, DateTimeOffset.Now);
+        var tooltip = QuotaFormatter.Tooltip(snapshots, DateTimeOffset.Now, _strings);
         _trayIcon.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
 
         if (_popup is { IsVisible: true })

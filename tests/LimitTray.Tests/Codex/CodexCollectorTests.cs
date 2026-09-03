@@ -181,10 +181,11 @@ public class CodexCollectorTests
             HealthState.Stale, Now, "dosyadan");
         var attempts = 0;
 
-        // Deneme sayisi, yedegin ISTENDIGI an olculur. Testin sonunda okumak
-        // yarisli olur: RunLoop arka planda doner ve iptal hemen etki etmez,
-        // bu yuzden bitiste sayac 3'ten buyuk olabilir. Onemli olan zaten
-        // yedegin tam ucuncu basarisizlikta istenmesi.
+        // The attempt count is measured when the fallback is REQUESTED. Reading
+        // it at the end would race: RunLoop continues in the background and
+        // cancellation does not take effect immediately, so the final count may
+        // exceed three. What matters is that the fallback was requested on the
+        // exact third failure.
         var attemptsWhenFallbackRequested = 0;
 
         var collector = new CodexCollector(
@@ -193,9 +194,9 @@ public class CodexCollectorTests
             (_, _) => Task.CompletedTask,
             () =>
             {
-                // Yedek birden cok kez istenebilir (her uc basarisizlikta bir).
-                // Olculecek olan ILK istektir; sonrakiler uzerine yazarsa test
-                // dongunun o ana kadar kac tur donduguntu olcer, davranisi degil.
+                // The fallback may be requested multiple times (once every three
+                // failures). Measure the FIRST request; if later requests overwrite
+                // it, the test measures how many loop turns have elapsed, not behavior.
                 if (attemptsWhenFallbackRequested == 0)
                     attemptsWhenFallbackRequested = attempts;
                 return fallback;

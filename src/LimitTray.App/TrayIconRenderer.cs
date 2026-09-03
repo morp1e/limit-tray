@@ -5,7 +5,7 @@ using LimitTray.Core.Presentation;
 
 namespace LimitTray.App;
 
-/// <summary>En yuksek yuzdeyi halka olarak cizer. Deger yoksa soru isareti cizer.</summary>
+/// <summary>Draws the highest percentage as a ring. Draws a question mark when unavailable.</summary>
 public static class TrayIconRenderer
 {
     private const int Size = 32;

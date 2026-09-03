@@ -34,10 +34,10 @@ public sealed class CodexCollector : IQuotaCollector
     public string Provider => CodexRateLimitsParser.Provider;
 
     /// <summary>
-    /// Oturum kasten uzun yasar: app-server bagli kaldigi surece
-    /// account/rateLimits/updated bildirimleri akar. Bu yuzden snapshot'lar
-    /// oturum bitiminde toplu degil, geldikleri anda yayilir — arada bir
-    /// Channel vardir, cunku try/catch icinden yield return yapilamaz.
+    /// The session intentionally remains long-lived: account/rateLimits/updated
+    /// notifications flow while the app-server remains connected. Therefore,
+    /// snapshots are published as they arrive rather than in a batch at session
+    /// end. A Channel is used because yield return cannot be used inside try/catch.
     /// </summary>
     public async IAsyncEnumerable<QuotaSnapshot> Watch(
         [EnumeratorCancellation] CancellationToken ct)
@@ -104,7 +104,7 @@ public sealed class CodexCollector : IQuotaCollector
         }
     }
 
-    /// <summary>Surec basladiysa true doner; snapshot'lari writer'a yazar.</summary>
+    /// <summary>Returns true if the process started and writes snapshots to the writer.</summary>
     private async Task<bool> RunSession(
         ChannelWriter<QuotaSnapshot> writer, CancellationToken ct)
     {

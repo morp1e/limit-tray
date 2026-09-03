@@ -10,7 +10,7 @@ public static class CodexRateLimitsParser
     private static readonly TimeSpan DefaultSessionWindow = TimeSpan.FromHours(5);
     private static readonly TimeSpan DefaultWeeklyWindow = TimeSpan.FromDays(7);
 
-    /// <summary>result.rateLimits veya params.rateLimits tasiyan mesaji ayristirir.</summary>
+    /// <summary>Parses a message containing result.rateLimits or params.rateLimits.</summary>
     public static QuotaSnapshot ParseAppServer(string json, DateTimeOffset now)
     {
         JsonDocument doc;

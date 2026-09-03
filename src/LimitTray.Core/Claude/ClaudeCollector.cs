@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using LimitTray.Core.Collectors;
 using LimitTray.Core.Http;
 using LimitTray.Core.Model;
+using LimitTray.Core.Presentation;
 
 namespace LimitTray.Core.Claude;
 
@@ -42,9 +43,9 @@ public sealed class ClaudeCollector : IQuotaCollector
         {
             var (snapshot, rateLimited) = await FetchOnce(ct).ConfigureAwait(false);
 
-            // SIRA KRITIK: once yayin, sonra bekleme. Tersi olursa uygulama
-            // acilista bir tam aralik boyunca bos kalir ve her deger bir cevrim
-            // geç gorunur. Bir testi gecirmek icin bu sira degistirilmez.
+            // ORDER IS CRITICAL: publish first, then wait. Reversing this leaves
+            // the application empty for one full interval at startup and makes
+            // every value appear one cycle late. Do not change this order to pass a test.
             yield return snapshot;
 
             if (ct.IsCancellationRequested) yield break;
@@ -79,7 +80,7 @@ public sealed class ClaudeCollector : IQuotaCollector
         {
             return (QuotaSnapshot.Unhealthy(
                 Provider, HealthState.AuthMissing, now,
-                "Claude oturumu bulunamadi, giris gerekli"), false);
+                "Claude oturumu bulunamadı, giriş gerekli"), false);
         }
 
         var headers = new Dictionary<string, string>
@@ -110,10 +111,10 @@ public sealed class ClaudeCollector : IQuotaCollector
             200 => (ClaudeUsageParser.Parse(result.Body, now), false),
             401 or 403 => (QuotaSnapshot.Unhealthy(
                 Provider, HealthState.AuthMissing, now,
-                "Token gecersiz, giris gerekli"), false),
+                "Token geçersiz, giriş gerekli"), false),
             429 => (QuotaSnapshot.Unhealthy(
                 Provider, HealthState.RateLimited, now,
-                "Gecici olarak sinirli"), true),
+                Strings.Turkish.RateLimited), true),
             _ => (QuotaSnapshot.Unhealthy(
                 Provider, HealthState.ProtocolBroken, now,
                 $"Beklenmeyen yanit: HTTP {result.StatusCode}"), false),

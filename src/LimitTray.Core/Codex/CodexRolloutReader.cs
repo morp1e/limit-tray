@@ -4,8 +4,8 @@ using LimitTray.Core.Model;
 namespace LimitTray.Core.Codex;
 
 /// <summary>
-/// app-server calismadiginda son bilinen kotayi rollout dosyalarindan okur.
-/// Bu kaynak her zaman Stale'dir: dosya son API cagrisi kadar eskidir.
+/// Reads the last known quota from rollout files when the app-server is not running.
+/// This source is always Stale: the file is as old as the last API call.
 /// </summary>
 public static class CodexRolloutReader
 {

@@ -29,7 +29,7 @@ public static class ClaudeUsageParser
             var session = ReadWindow(root, "five_hour", FiveHours);
             var weekly = ReadWindow(root, "seven_day", SevenDays);
 
-            // five_hour hicbir zaman opsiyonel degildir; yoksa sema degismistir.
+            // five_hour is never optional; if it is missing, the schema has changed.
             if (session is null && !HasExplicitNull(root, "five_hour"))
             {
                 return QuotaSnapshot.Unhealthy(

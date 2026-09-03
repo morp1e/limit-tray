@@ -92,8 +92,9 @@ public class ClaudeCollectorTests
     [Fact]
     public async Task Watch_429_YieldsRateLimitedAndBacksOff()
     {
-        // Snapshot ONCE yayilir, bekleme SONRA gelir. Bu yuzden N gecikme gozlemek
-        // icin N+1 snapshot alinir; aksi halde son bekleme hic calismaz.
+        // The snapshot is published ONCE, then the wait occurs. Therefore N+1
+        // snapshots are collected to observe N delays; otherwise the final wait
+        // never runs.
         var delays = new List<TimeSpan>();
         var transport = new FakeTransport(
             new HttpTransportResult(429, "{}"),

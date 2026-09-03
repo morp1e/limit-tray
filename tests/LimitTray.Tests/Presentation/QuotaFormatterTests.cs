@@ -1,3 +1,4 @@
+using System.Globalization;
 using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
 using Xunit;
@@ -8,6 +9,9 @@ public class QuotaFormatterTests
 {
     private static readonly DateTimeOffset Now =
         new(2026, 9, 3, 20, 0, 0, TimeSpan.Zero);
+
+    private static readonly Strings Tr = Strings.Turkish;
+    private static readonly Strings En = Strings.English;
 
     [Theory]
     [InlineData(0.0, QuotaSeverity.Normal)]
@@ -29,43 +33,76 @@ public class QuotaFormatterTests
 
     [Fact]
     public void ResetsIn_HoursAndMinutes() =>
-        Assert.Equal("4s 38d sonra sifirlanir",
-            QuotaFormatter.ResetsIn(Now.AddMinutes(278), Now));
+        Assert.Equal("4s 38d sonra sıfırlanır",
+            QuotaFormatter.ResetsIn(Now.AddMinutes(278), Now, Tr));
 
     [Fact]
     public void ResetsIn_DaysAndHours() =>
-        Assert.Equal("1g 14s sonra sifirlanir",
-            QuotaFormatter.ResetsIn(Now.AddHours(38), Now));
+        Assert.Equal("1g 14s sonra sıfırlanır",
+            QuotaFormatter.ResetsIn(Now.AddHours(38), Now, Tr));
 
     [Fact]
     public void ResetsIn_UnderOneMinute() =>
-        Assert.Equal("birazdan sifirlanir",
-            QuotaFormatter.ResetsIn(Now.AddSeconds(30), Now));
+        Assert.Equal("birazdan sıfırlanır",
+            QuotaFormatter.ResetsIn(Now.AddSeconds(30), Now, Tr));
 
     [Fact]
     public void ResetsIn_PastTime_SaysResetting() =>
-        Assert.Equal("sifirlaniyor", QuotaFormatter.ResetsIn(Now.AddMinutes(-5), Now));
+        Assert.Equal("Sıfırlanıyor", QuotaFormatter.ResetsIn(Now.AddMinutes(-5), Now, Tr));
 
     [Fact]
     public void ResetsIn_Null_SaysUnknown() =>
-        Assert.Equal("sifirlanma zamani bilinmiyor", QuotaFormatter.ResetsIn(null, Now));
+        Assert.Equal("Sıfırlanma zamanı bilinmiyor", QuotaFormatter.ResetsIn(null, Now, Tr));
 
     [Fact]
     public void Age_JustNow() =>
-        Assert.Equal("simdi guncellendi", QuotaFormatter.Age(Now.AddSeconds(-10), Now));
+        Assert.Equal("Şimdi güncellendi", QuotaFormatter.Age(Now.AddSeconds(-10), Now, Tr));
 
     [Fact]
     public void Age_Minutes() =>
-        Assert.Equal("3 dk once", QuotaFormatter.Age(Now.AddMinutes(-3), Now));
+        Assert.Equal("3 dk önce", QuotaFormatter.Age(Now.AddMinutes(-3), Now, Tr));
 
     [Theory]
-    [InlineData(HealthState.RateLimited, "Gecici olarak sinirli")]
-    [InlineData(HealthState.AuthMissing, "Giris gerekli")]
-    [InlineData(HealthState.ProtocolBroken, "API degismis")]
+    [InlineData(HealthState.RateLimited, "Geçici olarak sınırlı")]
+    [InlineData(HealthState.AuthMissing, "Giriş gerekli")]
+    [InlineData(HealthState.ProtocolBroken, "API değişmiş")]
+    [InlineData(HealthState.Stale, "Veri eski")]
     public void HealthText_DescribesFailure(HealthState health, string expected)
     {
         var snapshot = QuotaSnapshot.Unhealthy("claude", health, Now, "detay");
-        Assert.Equal(expected, QuotaFormatter.HealthText(snapshot));
+        Assert.Equal(expected, QuotaFormatter.HealthText(snapshot, Tr));
+    }
+
+    [Theory]
+    [InlineData(HealthState.RateLimited, "Temporarily rate-limited")]
+    [InlineData(HealthState.AuthMissing, "Login required")]
+    [InlineData(HealthState.ProtocolBroken, "API changed")]
+    [InlineData(HealthState.Stale, "Data is stale")]
+    public void HealthText_DescribesFailureInEnglish(HealthState health, string expected)
+    {
+        var snapshot = QuotaSnapshot.Unhealthy("claude", health, Now, "detail");
+        Assert.Equal(expected, QuotaFormatter.HealthText(snapshot, En));
+    }
+
+    [Theory]
+    [InlineData(14.0, "%14")]
+    [InlineData(99.5, "%100")]
+    public void Percent_IsLanguageIndependent(double value, string expected) =>
+        Assert.Equal(expected, QuotaFormatter.Percent(value));
+
+    [Fact]
+    public void EnglishFormatting_CoversResetsAndAge()
+    {
+        Assert.Equal("4h 38m until reset", QuotaFormatter.ResetsIn(Now.AddMinutes(278), Now, En));
+        Assert.Equal("3m ago", QuotaFormatter.Age(Now.AddMinutes(-3), Now, En));
+    }
+
+    [Fact]
+    public void CultureSelection_UsesTurkishOnlyForTurkishCulture()
+    {
+        Assert.Same(Strings.Turkish, Strings.ForCulture(CultureInfo.GetCultureInfo("tr-TR")));
+        Assert.Same(Strings.English, Strings.ForCulture(CultureInfo.GetCultureInfo("en-US")));
+        Assert.Same(Strings.English, Strings.ForCulture(CultureInfo.GetCultureInfo("de-DE")));
     }
 
     [Fact]
@@ -84,7 +121,7 @@ public class QuotaFormatterTests
         };
 
         Assert.Equal("CC %14 / %12  ·  CX %0 / %36",
-            QuotaFormatter.Tooltip(snapshots, Now));
+            QuotaFormatter.Tooltip(snapshots, Now, Tr));
     }
 
     [Fact]
@@ -95,9 +132,9 @@ public class QuotaFormatterTests
             QuotaSnapshot.Unhealthy("claude", HealthState.AuthMissing, Now, "detay"),
         };
 
-        var tooltip = QuotaFormatter.Tooltip(snapshots, Now);
+        var tooltip = QuotaFormatter.Tooltip(snapshots, Now, Tr);
 
-        Assert.Contains("Giris gerekli", tooltip);
+        Assert.Contains("Giriş gerekli", tooltip);
         Assert.DoesNotContain("%0", tooltip);
     }
 

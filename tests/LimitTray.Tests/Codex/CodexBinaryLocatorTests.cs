@@ -31,9 +31,9 @@ public class CodexBinaryLocatorTests
             c.EndsWith("codex.exe", StringComparison.OrdinalIgnoreCase));
     }
 
-    // Regresyon: BOM'lu bir encoding app-server'i tamamen susturur. Bu testi
-    // kiran bir degisiklik, birim testleri yesil birakip uygulamayi sessizce
-    // olduren turdendir — olculdu 2026-09-03.
+    // Regression: BOM-bearing encoding completely silences the app-server. A
+    // change that breaks this test can leave unit tests green while silently
+    // killing the application — measured 2026-09-03.
     [Fact]
     public void StdioProcessEncoding_EmitsNoByteOrderMark() =>
         Assert.Empty(StdioJsonRpcProcess.Utf8NoBom.GetPreamble());

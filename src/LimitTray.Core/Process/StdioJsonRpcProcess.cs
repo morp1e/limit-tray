@@ -9,11 +9,11 @@ namespace LimitTray.Core.Process;
 public sealed class StdioJsonRpcProcess : IJsonRpcProcess
 {
     /// <summary>
-    /// BOM'SUZ olmasi zorunlu. Encoding.UTF8 sabiti BOM uretir ve ilk yazimda
-    /// satirin basina EF BB BF gonderir; app-server bunu ayristiramaz,
-    /// "Failed to deserialize JSONRPCMessage: expected value at line 1 column 1"
-    /// diye stderr'e yazar ve HIC yanit vermez. Olculdu 2026-09-03: BOM'suz
-    /// gonderimde initialize yaniti geliyor, BOM'lu gonderimde sifir satir.
+    /// Must be WITHOUT a BOM. The Encoding.UTF8 constant produces a BOM and
+    /// sends EF BB BF at the start of the first line; the app-server cannot parse
+    /// it, writes "Failed to deserialize JSONRPCMessage: expected value at line 1 column 1"
+    /// to stderr, and sends NO response. Measured 2026-09-03: BOM-free sends
+    /// receive an initialize response, while BOM-bearing sends receive zero lines.
     /// </summary>
     internal static readonly Encoding Utf8NoBom =
         new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);

@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace LimitTray.Core.Claude;
 
 /// <summary>
-/// Token'i her cagrida diskten taze okur; Claude Code onu yenilemis olabilir.
-/// Token asla alanda saklanmaz ve asla loglanmaz.
+/// Reads the token fresh from disk on every call; Claude Code may have refreshed it.
+/// The token is never stored in a field and is never logged.
 /// </summary>
 public sealed class ClaudeCredentialReader
 {

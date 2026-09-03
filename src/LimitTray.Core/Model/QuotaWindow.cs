@@ -1,6 +1,6 @@
 namespace LimitTray.Core.Model;
 
-/// <summary>Tek bir kota penceresi. Percent 0-100 araligindadir.</summary>
+/// <summary>A single quota window. Percent is in the range 0-100.</summary>
 public sealed record QuotaWindow(
     double Percent,
     DateTimeOffset? ResetsAt,

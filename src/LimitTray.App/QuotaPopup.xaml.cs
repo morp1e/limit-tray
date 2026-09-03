@@ -11,31 +11,37 @@ namespace LimitTray.App;
 
 public partial class QuotaPopup : Window
 {
-    public QuotaPopup() => InitializeComponent();
+    private readonly Strings _strings;
+
+    public QuotaPopup(Strings strings)
+    {
+        _strings = strings;
+        InitializeComponent();
+    }
 
     public void Show(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
     {
         ProvidersPanel.Children.Clear();
 
         foreach (var snapshot in snapshots)
-            ProvidersPanel.Children.Add(BuildProviderBlock(snapshot, now));
+            ProvidersPanel.Children.Add(BuildProviderBlock(snapshot, now, _strings));
 
         FooterText.Text = snapshots.Count == 0
-            ? "Henuz veri yok"
-            : QuotaFormatter.Age(snapshots.Max(s => s.FetchedAt), now);
+            ? _strings.NoData
+            : QuotaFormatter.Age(snapshots.Max(s => s.FetchedAt), now, _strings);
 
         PositionNearTray();
         Show();
         Activate();
     }
 
-    private static UIElement BuildProviderBlock(QuotaSnapshot snapshot, DateTimeOffset now)
+    private static UIElement BuildProviderBlock(QuotaSnapshot snapshot, DateTimeOffset now, Strings strings)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
 
         panel.Children.Add(new TextBlock
         {
-            Text = TitleFor(snapshot.Provider),
+            Text = TitleFor(snapshot.Provider, strings),
             Foreground = Brushes.White,
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,
@@ -46,21 +52,21 @@ public partial class QuotaPopup : Window
         {
             panel.Children.Add(new TextBlock
             {
-                Text = QuotaFormatter.HealthText(snapshot),
+                Text = QuotaFormatter.HealthText(snapshot, strings),
                 Foreground = new SolidColorBrush(Color.FromRgb(235, 87, 87)),
                 FontSize = 12,
             });
             return panel;
         }
 
-        AddWindowRow(panel, "Session", "5 saatlik pencere", snapshot.Session, snapshot, now);
-        AddWindowRow(panel, "Weekly", "7 gunluk pencere", snapshot.Weekly, snapshot, now);
+        AddWindowRow(panel, strings.Session, strings.SessionWindow, snapshot.Session, snapshot, now, strings);
+        AddWindowRow(panel, strings.Weekly, strings.WeeklyWindow, snapshot.Weekly, snapshot, now, strings);
         return panel;
     }
 
     private static void AddWindowRow(
         System.Windows.Controls.Panel parent, string title, string subtitle, QuotaWindow? window,
-        QuotaSnapshot snapshot, DateTimeOffset now)
+        QuotaSnapshot snapshot, DateTimeOffset now, Strings strings)
     {
         if (window is null) return;
 
@@ -115,18 +121,18 @@ public partial class QuotaPopup : Window
 
         parent.Children.Add(new TextBlock
         {
-            Text = QuotaFormatter.ResetsIn(window.ResetsAt, now)
-                   + (stale ? " · " + QuotaFormatter.HealthText(snapshot) : ""),
+            Text = QuotaFormatter.ResetsIn(window.ResetsAt, now, strings)
+                   + (stale ? " · " + QuotaFormatter.HealthText(snapshot, strings) : ""),
             Foreground = Brushes.Gray,
             FontSize = 11,
             Margin = new Thickness(0, 0, 0, 10),
         });
     }
 
-    private static string TitleFor(string provider) => provider switch
+    private static string TitleFor(string provider, Strings strings) => provider switch
     {
-        "claude" => "Claude Usage",
-        "codex" => "Codex Usage",
+        "claude" => strings.ClaudeUsage,
+        "codex" => strings.CodexUsage,
         _ => provider,
     };
 

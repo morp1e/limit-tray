@@ -3,9 +3,9 @@ using LimitTray.Core.Model;
 namespace LimitTray.Core.Store;
 
 /// <summary>
-/// Son snapshot'lari tutar ve yasa gore Fresh -> Stale gecisini yonetir.
-/// Hata durumlari (RateLimited, AuthMissing, ProtocolBroken) yas gectikce
-/// Stale'e cevrilmez; hata bilgisi daha spesifiktir ve korunur.
+/// Holds the latest snapshots and manages the Fresh -> Stale transition by age.
+/// Error states (RateLimited, AuthMissing, ProtocolBroken) are not converted to
+/// Stale as they age; the error information is more specific and is preserved.
 /// </summary>
 public sealed class QuotaStore
 {

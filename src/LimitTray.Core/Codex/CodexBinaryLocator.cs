@@ -1,8 +1,8 @@
 namespace LimitTray.Core.Codex;
 
 /// <summary>
-/// Windows'ta PATH'teki `codex` bir npm shim'idir ve dogrudan surec olarak
-/// baslatilamaz (WinError 2). Gercek ikili npm vendor dizinindedir.
+/// On Windows, `codex` on PATH is an npm shim and cannot be started directly
+/// as a process (WinError 2). The real binary is in the npm vendor directory.
 /// </summary>
 public static class CodexBinaryLocator
 {

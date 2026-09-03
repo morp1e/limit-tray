@@ -5,6 +5,8 @@ namespace LimitTray.Core.Presentation;
 
 public static class QuotaFormatter
 {
+    public static Strings DefaultStrings { get; set; } =
+        Strings.ForCulture(CultureInfo.CurrentUICulture);
     public const double CautionThreshold = 60.0;
     public const double WarningThreshold = 85.0;
 
@@ -19,37 +21,48 @@ public static class QuotaFormatter
         "%" + Math.Round(value, MidpointRounding.AwayFromZero)
             .ToString("0", CultureInfo.InvariantCulture);
 
-    public static string ResetsIn(DateTimeOffset? resetsAt, DateTimeOffset now)
+    public static string ResetsIn(DateTimeOffset? resetsAt, DateTimeOffset now) =>
+        ResetsIn(resetsAt, now, DefaultStrings);
+
+    public static string ResetsIn(DateTimeOffset? resetsAt, DateTimeOffset now, Strings strings)
     {
-        if (resetsAt is null) return "sifirlanma zamani bilinmiyor";
+        if (resetsAt is null) return strings.ResetUnknown;
 
         var remaining = resetsAt.Value - now;
-        if (remaining <= TimeSpan.Zero) return "sifirlaniyor";
-        if (remaining < TimeSpan.FromMinutes(1)) return "birazdan sifirlanir";
+        if (remaining <= TimeSpan.Zero) return strings.Resetting;
+        if (remaining < TimeSpan.FromMinutes(1)) return strings.ResetSoon;
 
         if (remaining >= TimeSpan.FromDays(1))
-            return $"{remaining.Days}g {remaining.Hours}s sonra sifirlanir";
+            return string.Format(CultureInfo.InvariantCulture, strings.ResetDaysHours,
+                remaining.Days, remaining.Hours);
 
         if (remaining >= TimeSpan.FromHours(1))
-            return $"{remaining.Hours}s {remaining.Minutes}d sonra sifirlanir";
+            return string.Format(CultureInfo.InvariantCulture, strings.ResetHoursMinutes,
+                remaining.Hours, remaining.Minutes);
 
-        return $"{remaining.Minutes}d sonra sifirlanir";
+        return string.Format(CultureInfo.InvariantCulture, strings.ResetMinutes, remaining.Minutes);
     }
 
-    public static string Age(DateTimeOffset fetchedAt, DateTimeOffset now)
+    public static string Age(DateTimeOffset fetchedAt, DateTimeOffset now) =>
+        Age(fetchedAt, now, DefaultStrings);
+
+    public static string Age(DateTimeOffset fetchedAt, DateTimeOffset now, Strings strings)
     {
         var age = now - fetchedAt;
-        if (age < TimeSpan.FromMinutes(1)) return "simdi guncellendi";
-        if (age < TimeSpan.FromHours(1)) return $"{(int)age.TotalMinutes} dk once";
-        return $"{(int)age.TotalHours} sa once";
+        if (age < TimeSpan.FromMinutes(1)) return strings.UpdatedNow;
+        if (age < TimeSpan.FromHours(1))
+            return string.Format(CultureInfo.InvariantCulture, strings.AgeMinutes, (int)age.TotalMinutes);
+        return string.Format(CultureInfo.InvariantCulture, strings.AgeHours, (int)age.TotalHours);
     }
 
-    public static string HealthText(QuotaSnapshot snapshot) => snapshot.Health switch
+    public static string HealthText(QuotaSnapshot snapshot) => HealthText(snapshot, DefaultStrings);
+
+    public static string HealthText(QuotaSnapshot snapshot, Strings strings) => snapshot.Health switch
     {
-        HealthState.RateLimited => "Gecici olarak sinirli",
-        HealthState.AuthMissing => "Giris gerekli",
-        HealthState.ProtocolBroken => "API degismis",
-        HealthState.Stale => "Veri eski",
+        HealthState.RateLimited => strings.RateLimited,
+        HealthState.AuthMissing => strings.AuthMissing,
+        HealthState.ProtocolBroken => strings.ProtocolBroken,
+        HealthState.Stale => strings.Stale,
         _ => "",
     };
 
@@ -60,7 +73,10 @@ public static class QuotaFormatter
         _ => provider.ToUpperInvariant(),
     };
 
-    public static string Tooltip(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
+    public static string Tooltip(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now) =>
+        Tooltip(snapshots, now, DefaultStrings);
+
+    public static string Tooltip(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now, Strings strings)
     {
         var parts = new List<string>(snapshots.Count);
 
@@ -70,7 +86,7 @@ public static class QuotaFormatter
 
             if (snapshot.Session is null && snapshot.Weekly is null)
             {
-                parts.Add($"{name} {HealthText(snapshot)}");
+                parts.Add($"{name} {HealthText(snapshot, strings)}");
                 continue;
             }
 
@@ -83,16 +99,16 @@ public static class QuotaFormatter
     }
 
     /// <summary>
-    /// Herhangi bir saglayicinin verisi alinamiyorsa true. Stale sayilmaz:
-    /// eski veri hala gercek veridir, alinamayan veri degildir.
+    /// True when data cannot be obtained from any provider. Stale does not count:
+    /// old data is still real data, not unavailable data.
     /// </summary>
     public static bool HasUnhealthy(IReadOnlyList<QuotaSnapshot> snapshots) =>
         snapshots.Any(s => s.Health is HealthState.RateLimited
             or HealthState.AuthMissing or HealthState.ProtocolBroken);
 
     /// <summary>
-    /// Simgede gosterilecek deger: saglikli snapshot'lardaki en yuksek yuzde.
-    /// Sagliksiz snapshot hic sayilmaz — hata sifir gibi gorunemez.
+    /// The value shown in the icon: the highest percentage among healthy snapshots.
+    /// Unhealthy snapshots are excluded entirely — an error must not look like zero.
     /// </summary>
     public static double? HighestPercent(IReadOnlyList<QuotaSnapshot> snapshots)
     {

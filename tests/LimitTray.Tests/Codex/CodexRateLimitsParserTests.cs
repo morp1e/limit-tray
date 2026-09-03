@@ -9,7 +9,7 @@ public class CodexRateLimitsParserTests
     private static readonly DateTimeOffset Now =
         new(2026, 9, 3, 20, 0, 0, TimeSpan.Zero);
 
-    // app-server'dan olculen gercek yanit
+    // Actual response measured from the app-server.
     private const string RealResult = """
     {"id":2,"result":{"rateLimits":{"limitId":"codex",
       "primary":{"usedPercent":0,"windowDurationMins":300,"resetsAt":1788478826},
