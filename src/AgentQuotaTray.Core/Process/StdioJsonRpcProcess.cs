@@ -2,10 +2,22 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 
+[assembly: InternalsVisibleTo("AgentQuotaTray.Tests")]
+
 namespace AgentQuotaTray.Core.Process;
 
 public sealed class StdioJsonRpcProcess : IJsonRpcProcess
 {
+    /// <summary>
+    /// BOM'SUZ olmasi zorunlu. Encoding.UTF8 sabiti BOM uretir ve ilk yazimda
+    /// satirin basina EF BB BF gonderir; app-server bunu ayristiramaz,
+    /// "Failed to deserialize JSONRPCMessage: expected value at line 1 column 1"
+    /// diye stderr'e yazar ve HIC yanit vermez. Olculdu 2026-09-03: BOM'suz
+    /// gonderimde initialize yaniti geliyor, BOM'lu gonderimde sifir satir.
+    /// </summary>
+    internal static readonly Encoding Utf8NoBom =
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     private readonly string _fileName;
     private readonly string _arguments;
     private System.Diagnostics.Process? _process;
@@ -25,8 +37,8 @@ public sealed class StdioJsonRpcProcess : IJsonRpcProcess
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardInputEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardInputEncoding = Utf8NoBom,
         };
 
         _process = System.Diagnostics.Process.Start(info)
