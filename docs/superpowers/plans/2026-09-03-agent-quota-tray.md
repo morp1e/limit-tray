@@ -1322,13 +1322,30 @@ public class CodexCollectorTests
             "codex", new QuotaWindow(11.0, null, TimeSpan.FromHours(5)), null,
             HealthState.Stale, Now, "dosyadan");
         var attempts = 0;
+
+        // Deneme sayisi, yedegin ISTENDIGI an olculur. Testin sonunda okumak
+        // yarisli olur: RunLoop arka planda doner ve iptal hemen etki etmez,
+        // bu yuzden bitiste sayac 3'ten buyuk olabilir. Onemli olan zaten
+        // yedegin tam ucuncu basarisizlikta istenmesi.
+        var attemptsWhenFallbackRequested = 0;
+
         var collector = new CodexCollector(
             () => { attempts++; return new FakeProcess(Array.Empty<string>(), failStart: true); },
-            () => Now, (_, _) => Task.CompletedTask, () => fallback);
+            () => Now,
+            (_, _) => Task.CompletedTask,
+            () =>
+            {
+                // Yedek birden cok kez istenebilir (her uc basarisizlikta bir).
+                // Olculecek olan ILK istektir; sonrakiler uzerine yazarsa test
+                // dongunun o ana kadar kac tur donduguntu olcer, davranisi degil.
+                if (attemptsWhenFallbackRequested == 0)
+                    attemptsWhenFallbackRequested = attempts;
+                return fallback;
+            });
 
         var snaps = await Take(collector, 1);
 
-        Assert.Equal(3, attempts);
+        Assert.Equal(3, attemptsWhenFallbackRequested);
         Assert.Equal(HealthState.Stale, snaps[0].Health);
         Assert.Equal(11.0, snaps[0].Session!.Percent);
     }
