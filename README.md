@@ -28,8 +28,11 @@ would make a quota display worse than useless.
 
 ## Requirements
 
-Windows, and the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
-You also need to be logged into whichever agent you want to track.
+Windows, and an account logged into whichever agent you want to track. Lim'it reads whatever
+Claude Code and Codex have already authenticated — it never asks you to log in again.
+
+To build from source you need the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+The standalone executable below needs nothing installed at all.
 
 ## Run
 
@@ -38,6 +41,26 @@ dotnet run --project src/LimitTray.App
 ```
 
 Click the tray icon to open the panel. Right-click for exit.
+
+The interface follows your Windows language — Turkish or English. To override it, pass
+`--lang en` or `--lang tr` (the `--lang=en` form works too):
+
+```
+dotnet run --project src/LimitTray.App -- --lang en
+```
+
+### Build a standalone executable
+
+Publish a self-contained, single-file executable for 64-bit Windows:
+
+```
+dotnet publish src/LimitTray.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
+```
+
+The result is `publish/win-x64/LimitTray.App.exe`. It carries its own .NET runtime, so it runs
+on a machine with nothing installed — which is also why it is around 150 MB. If you already
+have the .NET 9 Desktop Runtime, drop `--self-contained true -p:PublishSingleFile=true` for a
+much smaller build.
 
 ## Test
 

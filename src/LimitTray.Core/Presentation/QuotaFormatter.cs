@@ -17,9 +17,12 @@ public static class QuotaFormatter
         _ => QuotaSeverity.Normal,
     };
 
-    public static string Percent(double value) =>
-        "%" + Math.Round(value, MidpointRounding.AwayFromZero)
-            .ToString("0", CultureInfo.InvariantCulture);
+    public static string Percent(double value) => Percent(value, DefaultStrings);
+
+    public static string Percent(double value, Strings strings) =>
+        string.Format(CultureInfo.InvariantCulture, strings.PercentFormat,
+            Math.Round(value, MidpointRounding.AwayFromZero)
+                .ToString("0", CultureInfo.InvariantCulture));
 
     public static string ResetsIn(DateTimeOffset? resetsAt, DateTimeOffset now) =>
         ResetsIn(resetsAt, now, DefaultStrings);
@@ -90,8 +93,8 @@ public static class QuotaFormatter
                 continue;
             }
 
-            var session = snapshot.Session is null ? "?" : Percent(snapshot.Session.Percent);
-            var weekly = snapshot.Weekly is null ? "?" : Percent(snapshot.Weekly.Percent);
+            var session = snapshot.Session is null ? "?" : Percent(snapshot.Session.Percent, strings);
+            var weekly = snapshot.Weekly is null ? "?" : Percent(snapshot.Weekly.Percent, strings);
             parts.Add($"{name} {session} / {weekly}");
         }
 

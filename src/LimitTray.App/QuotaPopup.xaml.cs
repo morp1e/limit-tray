@@ -78,7 +78,7 @@ public partial class QuotaPopup : Window
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
         var percent = new TextBlock
         {
-            Text = QuotaFormatter.Percent(window.Percent),
+            Text = QuotaFormatter.Percent(window.Percent, strings),
             Foreground = brush,
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,

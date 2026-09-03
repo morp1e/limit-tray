@@ -22,10 +22,11 @@ public partial class App : System.Windows.Application
     private QuotaPopup? _popup;
     private SystemHttpTransport? _transport;
     private System.Windows.Threading.DispatcherTimer? _stalenessTimer;
-    private readonly Strings _strings = Strings.ForCulture(CultureInfo.CurrentUICulture);
+    private Strings _strings = Strings.ForCulture(CultureInfo.CurrentUICulture);
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
+        _strings = LanguageArguments.Resolve(e.Args, CultureInfo.CurrentUICulture);
         _popup = new QuotaPopup(_strings);
 
         _trayIcon = new NotifyIcon

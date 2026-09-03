@@ -24,12 +24,16 @@ public class QuotaFormatterTests
         Assert.Equal(expected, QuotaFormatter.SeverityFor(percent));
 
     [Theory]
-    [InlineData(14.0, "%14")]
-    [InlineData(0.0, "%0")]
-    [InlineData(36.4, "%36")]
-    [InlineData(99.5, "%100")]
-    public void Percent_RoundsToWholeNumber(double value, string expected) =>
-        Assert.Equal(expected, QuotaFormatter.Percent(value));
+    [InlineData(79.0, "79")]
+    [InlineData(14.0, "14")]
+    [InlineData(0.0, "0")]
+    [InlineData(36.4, "36")]
+    [InlineData(99.5, "100")]
+    public void Percent_RoundsToWholeNumberInBothLanguages(double value, string rounded)
+    {
+        Assert.Equal(string.Format(Tr.PercentFormat, rounded), QuotaFormatter.Percent(value, Tr));
+        Assert.Equal(string.Format(En.PercentFormat, rounded), QuotaFormatter.Percent(value, En));
+    }
 
     [Fact]
     public void ResetsIn_HoursAndMinutes() =>
@@ -84,12 +88,6 @@ public class QuotaFormatterTests
         Assert.Equal(expected, QuotaFormatter.HealthText(snapshot, En));
     }
 
-    [Theory]
-    [InlineData(14.0, "%14")]
-    [InlineData(99.5, "%100")]
-    public void Percent_IsLanguageIndependent(double value, string expected) =>
-        Assert.Equal(expected, QuotaFormatter.Percent(value));
-
     [Fact]
     public void EnglishFormatting_CoversResetsAndAge()
     {
@@ -120,7 +118,8 @@ public class QuotaFormatterTests
                 HealthState.Fresh, Now, null),
         };
 
-        Assert.Equal("CC %14 / %12  ·  CX %0 / %36",
+        Assert.Equal($"CC {QuotaFormatter.Percent(14, Tr)} / {QuotaFormatter.Percent(12, Tr)}  ·  "
+                     + $"CX {QuotaFormatter.Percent(0, Tr)} / {QuotaFormatter.Percent(36, Tr)}",
             QuotaFormatter.Tooltip(snapshots, Now, Tr));
     }
 
@@ -135,7 +134,7 @@ public class QuotaFormatterTests
         var tooltip = QuotaFormatter.Tooltip(snapshots, Now, Tr);
 
         Assert.Contains("Giriş gerekli", tooltip);
-        Assert.DoesNotContain("%0", tooltip);
+        Assert.DoesNotContain(QuotaFormatter.Percent(0, Tr), tooltip);
     }
 
     [Fact]

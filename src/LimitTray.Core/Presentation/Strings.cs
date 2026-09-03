@@ -23,6 +23,7 @@ public sealed class Strings
         updatedNow: "Updated just now",
         ageMinutes: "{0}m ago",
         ageHours: "{0}h ago",
+        percentFormat: "{0}%",
         rateLimited: "Temporarily rate-limited",
         authMissing: "Login required",
         protocolBroken: "API changed",
@@ -46,6 +47,7 @@ public sealed class Strings
         updatedNow: "Şimdi güncellendi",
         ageMinutes: "{0} dk önce",
         ageHours: "{0} sa önce",
+        percentFormat: "%{0}",
         rateLimited: "Geçici olarak sınırlı",
         authMissing: "Giriş gerekli",
         protocolBroken: "API değişmiş",
@@ -55,7 +57,7 @@ public sealed class Strings
         string exit, string session, string weekly, string sessionWindow, string weeklyWindow,
         string noData, string claudeUsage, string codexUsage, string resetUnknown,
         string resetting, string resetSoon, string resetHoursMinutes, string resetMinutes, string resetDaysHours,
-        string updatedNow, string ageMinutes, string ageHours, string rateLimited,
+        string updatedNow, string ageMinutes, string ageHours, string percentFormat, string rateLimited,
         string authMissing, string protocolBroken, string stale)
     {
         Exit = exit;
@@ -75,6 +77,7 @@ public sealed class Strings
         UpdatedNow = updatedNow;
         AgeMinutes = ageMinutes;
         AgeHours = ageHours;
+        PercentFormat = percentFormat;
         RateLimited = rateLimited;
         AuthMissing = authMissing;
         ProtocolBroken = protocolBroken;
@@ -98,6 +101,7 @@ public sealed class Strings
     public string UpdatedNow { get; }
     public string AgeMinutes { get; }
     public string AgeHours { get; }
+    public string PercentFormat { get; }
     public string RateLimited { get; }
     public string AuthMissing { get; }
     public string ProtocolBroken { get; }
