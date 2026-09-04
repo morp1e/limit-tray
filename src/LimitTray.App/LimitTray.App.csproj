@@ -8,7 +8,9 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>13.0</LangVersion>
-    <ApplicationIcon></ApplicationIcon>
+    <ApplicationIcon>..\..\assets\limit.ico</ApplicationIcon>
+    <AssemblyTitle>Lim'it</AssemblyTitle>
+    <Product>Lim'it</Product>
   </PropertyGroup>
 
   <ItemGroup>

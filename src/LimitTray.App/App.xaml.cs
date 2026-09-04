@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +8,9 @@ using System.Windows.Forms;
 using LimitTray.Core.Claude;
 using LimitTray.Core.Codex;
 using LimitTray.Core.Collectors;
+using LimitTray.Core.History;
 using LimitTray.Core.Http;
+using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
 using LimitTray.Core.Process;
 using LimitTray.Core.Store;
@@ -16,44 +19,133 @@ namespace LimitTray.App;
 
 public partial class App : System.Windows.Application
 {
+    /// <summary>How often staleness is re-evaluated and the history is written out.</summary>
+    private static readonly TimeSpan HousekeepingInterval = TimeSpan.FromSeconds(30);
+
     private readonly CancellationTokenSource _cts = new();
     private readonly QuotaStore _store = new(() => DateTimeOffset.Now);
+    private readonly QuotaAlerts _alerts = new();
+    private readonly HistoryStore _historyStore = HistoryStore.ForDefaultPath();
+
+    private UsageHistory _history = new();
     private NotifyIcon? _trayIcon;
+    private RenderedIcon? _currentIcon;
     private QuotaPopup? _popup;
     private SystemHttpTransport? _transport;
-    private System.Windows.Threading.DispatcherTimer? _stalenessTimer;
+    private System.Windows.Threading.DispatcherTimer? _housekeepingTimer;
+    private ToolStripMenuItem? _startupItem;
     private Strings _strings = Strings.ForCulture(CultureInfo.CurrentUICulture);
+    private IReadOnlyList<string> _arguments = Array.Empty<string>();
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
+        _arguments = e.Args;
         _strings = LanguageArguments.Resolve(e.Args, CultureInfo.CurrentUICulture);
-        _popup = new QuotaPopup(_strings);
+        _history = _historyStore.Load();
+        _popup = new QuotaPopup(_strings, _history);
 
+        _currentIcon = TrayIconRenderer.Render(null, hasUnhealthy: false);
         _trayIcon = new NotifyIcon
         {
-            Icon = TrayIconRenderer.Render(null, hasUnhealthy: false),
+            Icon = _currentIcon.Icon,
             Visible = true,
             Text = "Lim'it",
         };
-        _trayIcon.Click += (_, _) => TogglePopup();
 
-        var menu = new ContextMenuStrip();
-        menu.Items.Add(_strings.Exit, null, (_, _) => Shutdown());
-        _trayIcon.ContextMenuStrip = menu;
-
-        _store.Changed += _ => Dispatcher.Invoke(UpdateTray);
-
-        _stalenessTimer = new System.Windows.Threading.DispatcherTimer
+        // Click fires for either button, so the right button used to open the panel and
+        // the context menu at the same time. Only the left button toggles.
+        _trayIcon.MouseClick += (_, args) =>
         {
-            Interval = TimeSpan.FromSeconds(30),
+            if (args.Button == MouseButtons.Left) TogglePopup();
         };
-        _stalenessTimer.Tick += (_, _) => _store.RefreshStaleness();
-        _stalenessTimer.Start();
+
+        _trayIcon.ContextMenuStrip = BuildMenu();
+
+        _store.Changed += OnSnapshot;
+
+        // Seeding happens after the tray icon exists, because applying a snapshot
+        // immediately raises Changed and redraws it.
+        SeedFromHistory();
+
+        _housekeepingTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = HousekeepingInterval,
+        };
+        _housekeepingTimer.Tick += (_, _) =>
+        {
+            _store.RefreshStaleness();
+            _historyStore.Save(_history);
+        };
+        _housekeepingTimer.Start();
 
         _transport = new SystemHttpTransport();
         StartCollector(BuildClaudeCollector(_transport));
         StartCollector(BuildCodexCollector());
+
     }
+
+    private ContextMenuStrip BuildMenu()
+    {
+        var menu = new ContextMenuStrip();
+
+        if (StartupRegistration.IsSupported)
+        {
+            _startupItem = new ToolStripMenuItem(_strings.StartWithWindows)
+            {
+                Checked = StartupRegistration.IsEnabled(),
+            };
+            _startupItem.Click += (_, _) => ToggleStartup();
+            menu.Items.Add(_startupItem);
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
+        menu.Items.Add(_strings.Exit, null, (_, _) => Shutdown());
+        return menu;
+    }
+
+    private void ToggleStartup()
+    {
+        if (_startupItem is null) return;
+
+        StartupRegistration.SetEnabled(!_startupItem.Checked, _arguments);
+
+        // The state is read back rather than assumed: the key can be denied by policy,
+        // and a tick that lies is worse than one that refuses to move.
+        _startupItem.Checked = StartupRegistration.IsEnabled();
+    }
+
+    /// <summary>
+    /// Puts the last known values on screen before the first request returns. They are
+    /// stale by construction and carry the age they actually have, so a cold start
+    /// during an outage shows real numbers instead of an empty panel.
+    /// </summary>
+    private void SeedFromHistory()
+    {
+        foreach (var provider in _history.Providers())
+        {
+            var snapshot = _history.LastKnown(provider);
+            if (snapshot is not null) _store.Apply(snapshot);
+        }
+    }
+
+    private void OnSnapshot(QuotaSnapshot snapshot)
+    {
+        _history.Observe(snapshot);
+
+        var alerts = _alerts.Inspect(snapshot);
+        Dispatcher.Invoke(() =>
+        {
+            UpdateTray();
+            foreach (var alert in alerts) Notify(alert);
+        });
+    }
+
+    private void Notify(QuotaAlert alert) =>
+        _trayIcon?.ShowBalloonTip(
+            10_000,
+            _strings.WarningNotificationTitle,
+            QuotaAlerts.Body(alert, _strings),
+            ToolTipIcon.Warning);
 
     private static IQuotaCollector BuildClaudeCollector(IHttpTransport transport) =>
         new ClaudeCollector(
@@ -99,11 +191,15 @@ public partial class App : System.Windows.Application
         if (_trayIcon is null) return;
 
         var snapshots = _store.All();
-        var old = _trayIcon.Icon;
-        _trayIcon.Icon = TrayIconRenderer.Render(
+
+        var replacement = TrayIconRenderer.Render(
             QuotaFormatter.HighestPercent(snapshots),
             QuotaFormatter.HasUnhealthy(snapshots));
-        old?.Dispose();
+
+        var previous = _currentIcon;
+        _currentIcon = replacement;
+        _trayIcon.Icon = replacement.Icon;
+        previous?.Dispose();
 
         var tooltip = QuotaFormatter.Tooltip(snapshots, DateTimeOffset.Now, _strings);
         _trayIcon.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
@@ -115,9 +211,11 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         _cts.Cancel();
-        _stalenessTimer?.Stop();
+        _housekeepingTimer?.Stop();
+        _historyStore.Save(_history);
         if (_trayIcon is not null) _trayIcon.Visible = false;
         _trayIcon?.Dispose();
+        _currentIcon?.Dispose();
         _transport?.Dispose();
         base.OnExit(e);
     }

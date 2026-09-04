@@ -5,8 +5,15 @@
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
         Topmost="True" Background="#1E1E1E" BorderBrush="#333" BorderThickness="1"
         Deactivated="OnDeactivated">
+    <!--
+        The panels stretch; the individual lines are pinned to QuotaPopup.ContentWidth
+        in code and wrap. A StackPanel takes its layout width from its widest child, so
+        an unwrapped line long enough to exceed the window would push anything
+        right-aligned in a neighbouring row off the visible area.
+    -->
     <StackPanel Margin="16">
         <StackPanel x:Name="ProvidersPanel" />
-        <TextBlock x:Name="FooterText" Foreground="#777" FontSize="11" Margin="0,12,0,0" />
+        <TextBlock x:Name="FooterText" Foreground="#777" FontSize="11" Margin="0,12,0,0"
+                   TextWrapping="Wrap" />
     </StackPanel>
 </Window>

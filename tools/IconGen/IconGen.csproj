@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Build-time asset generator, deliberately outside LimitTray.sln: it produces
+    assets/limit.ico and is not part of the shipped application or of CI.
+
+    UseWindowsForms is here only to pull System.Drawing in from the Windows Desktop
+    reference pack, which keeps the repository free of NuGet dependencies.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>13.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>LimitTray.IconGen</RootNamespace>
+  </PropertyGroup>
+
+</Project>
