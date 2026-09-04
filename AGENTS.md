@@ -1,4 +1,4 @@
-# Lim'it — instructions for AI coding agents
+# Lim'it: instructions for AI coding agents
 
 Windows tray app showing Claude Code and Codex CLI quota in one panel.
 
@@ -8,8 +8,8 @@ This file is context for AI coding agents working on this repository. If you are
 ## Rules that hold in this repo
 
 - **All logic lives in `src/LimitTray.Core`, which must never reference WPF or WinForms.**
-  `src/LimitTray.App` only draws. This split is what keeps the logic testable headlessly — do
-  not move business rules into the UI project.
+  `src/LimitTray.App` only draws. This split is what keeps the logic testable headlessly.
+  Do not move business rules into the UI project.
 - **No failure state is ever rendered as `0%`.** `0%` is a real value a provider can genuinely
   report. Failures travel as `HealthState` (`RateLimited`, `AuthMissing`, `ProtocolBroken`,
   `Stale`) and are shown in words. Confusing an error with zero is the one defect that would
@@ -39,7 +39,7 @@ This file is context for AI coding agents working on this repository. If you are
   strings in `Strings.cs` are the deliberate exception and use proper accented characters.
 - **Neither data source is an official API.** The `anthropic-beta` header is undocumented and
   `codex app-server` is experimental. When a source changes shape, the correct behaviour is to
-  report `ProtocolBroken` — never to guess, interpolate, or substitute a plausible number.
+  report `ProtocolBroken`, never to guess, interpolate, or substitute a plausible number.
 - **Never bend production behaviour to make a test pass.** If a test cannot pass against
   correct code, the test is wrong: stop and say so rather than changing the code under it.
   This happened during development and cost a review cycle.
@@ -50,8 +50,8 @@ This file is context for AI coding agents working on this repository. If you are
   instrument.
 - **A green test suite is not proof the app works.** The unit tests here talk to fakes, and a
   fake process has no encoding, no real stdio and no clock. Run the app against the real
-  providers before claiming a change works. The two worst defects in this project's history —
-  a BOM that silenced the entire Codex side, and correct data mislabelled as stale — both
+  providers before claiming a change works. The two worst defects in this project's history,
+  a BOM that silenced the entire Codex side and correct data mislabelled as stale, both
   passed every test.
 
 ## Documents

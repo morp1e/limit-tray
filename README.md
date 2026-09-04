@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/banner.png" alt="Lim'it — Claude Code and Codex CLI usage limits in your Windows tray" width="640">
+  <img src="assets/banner.png" alt="Lim'it. Claude Code and Codex CLI usage limits in your Windows tray" width="640">
 </div>
 
 <p align="center">
@@ -17,22 +17,22 @@
 </p>
 
 Both agents track a 5-hour and a 7-day window, but each hides that number inside its own
-interactive session — `/usage` in Claude Code, `/status` in Codex. Lim'it puts both in one
+interactive session: `/usage` in Claude Code, `/status` in Codex. Lim'it puts both in one
 place, so "how much do I have left?" does not cost you a session.
 
 ![Lim'it popup showing Claude and Codex usage](docs/screenshot.png)
 
 ## Download
 
-**[Download the latest release](https://github.com/morp1e/limit-tray/releases/latest)** —
-one file, 64-bit Windows. Nothing to install: it carries its own .NET runtime, which is
+**[Download the latest release](https://github.com/morp1e/limit-tray/releases/latest)**.
+One file, 64-bit Windows. Nothing to install: it carries its own .NET runtime, which is
 also why it is around 70 MB.
 
 Run it and it appears in the tray. Left-click for the panel, right-click for the menu
 (**Start with Windows**, **Exit**). Startup is off until you turn it on.
 
 You need Windows and an account already logged into whichever agent you want to track.
-Lim'it reads what Claude Code and Codex have already authenticated — it never asks you to
+Lim'it reads what Claude Code and Codex have already authenticated. It never asks you to
 log in again, and it has no settings file to fill in.
 
 > **Windows will warn you the first time.** The executable is not code-signed, so
@@ -46,7 +46,7 @@ log in again, and it has no settings file to fill in.
 > The binary is built by [GitHub Actions from the tagged commit](.github/workflows/release.yml),
 > not uploaded from a developer's machine.
 
-The interface follows your Windows language — Turkish or English. Pass `--lang en` or
+The interface follows your Windows language, Turkish or English. Pass `--lang en` or
 `--lang tr` to override it.
 
 ## Why this exists
@@ -55,7 +55,7 @@ I use both agents daily, and how much I can get done in a day now depends on tho
 numbers. Checking them meant opening two sessions. So I built this for myself and put it
 here in case it is useful to someone else.
 
-There are already good tools in this space — several of them more mature, cross-platform, or
+There are already good tools in this space, several of them more mature, cross-platform, or
 supporting more providers. If Lim'it does not fit you, try
 [token-monitor](https://github.com/Javis603/token-monitor),
 [Usage4Claude](https://github.com/f-is-h/Usage4Claude),
@@ -64,7 +64,7 @@ supporting more providers. If Lim'it does not fit you, try
 
 Beyond the two numbers, it answers the question you actually have when you look at
 them: **how fast am I burning through this, and will it last?** From its own observations
-it fits a consumption rate and projects when the window fills — and when the window resets
+it fits a consumption rate and projects when the window fills. When the window resets
 before that can happen, it says so instead of showing a countdown to an event that will
 never arrive.
 
@@ -78,7 +78,7 @@ would make a quota display worse than useless.
 The two providers expose their quota in completely different ways, so Lim'it reads them
 differently.
 
-**Claude** — polls `GET https://api.anthropic.com/api/oauth/usage` every 120 seconds, sending
+**Claude.** Polls `GET https://api.anthropic.com/api/oauth/usage` every 120 seconds, sending
 the OAuth token from `~/.claude/.credentials.json` and the header
 `anthropic-beta: oauth-2025-04-20`. This is not a model call and does not consume your quota.
 
@@ -86,17 +86,17 @@ That endpoint is a shared resource: Claude Code itself calls it, so Lim'it is ne
 client and will sometimes get HTTP 429 no matter how politely it asks. When that happens it
 backs off exponentially (2, 4, 8 … capped at 15 minutes) and keeps showing the last known
 numbers, marked with their real age, instead of blanking the panel. A 429 here means the
-usage *lookup* was throttled — it says nothing about your actual quota, and the UI wording is
+usage *lookup* was throttled. It says nothing about your actual quota, and the UI wording is
 careful about that distinction.
 
-**Codex** — speaks JSON-RPC to `codex app-server` over stdio, calling
+**Codex.** Speaks JSON-RPC to `codex app-server` over stdio, calling
 `account/rateLimits/read` and listening for `account/rateLimits/updated` notifications. It
 also re-reads on a timer, because app-server only pushes when the quota actually changes and
 the data would otherwise look stale while being perfectly current. If app-server cannot be
 started, Lim'it falls back to the last `rate_limits` block written into
 `~/.codex/sessions/**/rollout-*.jsonl`, and clearly marks that data as stale.
 
-**History** — every fresh reading is kept in memory and mirrored to
+**History.** Every fresh reading is kept in memory and mirrored to
 `%LOCALAPPDATA%\limit-tray\history.json`. It buys three things:
 
 - **A cold start during an outage is not blank.** The last known values are shown
@@ -104,7 +104,7 @@ started, Lim'it falls back to the last `rate_limits` block written into
   to be current.
 - **A burn rate.** A least-squares fit over the retained samples gives percent-per-hour,
   and from it a projection of when the window fills. It appears only when the history can
-  support it — at least three samples spanning at least ten minutes, on a window that is
+  support it: at least three samples spanning at least ten minutes, on a window that is
   actually moving. Below that the line is simply absent, because a projection from two
   points an hour apart is a guess wearing a number's clothes.
 - **A trend line.** The small sparkline under each bar plots the retained samples against
@@ -115,7 +115,7 @@ than fitted across the reset. The file holds percentages, window lengths and tim
 and nothing else; if it is missing or corrupt the app behaves exactly as it would on a
 first run.
 
-**Notifications** — crossing 85% raises one balloon per window per fill. Staying above it
+**Notifications.** Crossing 85% raises one balloon per window per fill. Staying above it
 is silent, and falling back below it arms the next crossing. A tool that warns every two
 minutes gets muted, and a muted warning is worth nothing.
 
@@ -137,12 +137,12 @@ with them, so:
   endpoint above.
 - The one file it writes is `%LOCALAPPDATA%\limit-tray\history.json`: percentages, window
   lengths and timestamps. No token, no account identifier, no request or response body, and
-  no error text — error detail can carry an exception message, so it is deliberately never
+  no error text. Error detail can carry an exception message, so it is deliberately never
   persisted. Deleting the file loses the trend and nothing else.
 
 The code is short and the relevant file is
-[`ClaudeCredentialReader.cs`](src/LimitTray.Core/Claude/ClaudeCredentialReader.cs) — please
-read it rather than take my word for it.
+[`ClaudeCredentialReader.cs`](src/LimitTray.Core/Claude/ClaudeCredentialReader.cs).
+Please read it rather than take my word for it.
 
 ## Stability warning
 
@@ -152,7 +152,7 @@ Neither data source is a documented, supported API.
   Anthropic can change or remove it without notice.
 - `codex app-server` is marked experimental by OpenAI and its method names may change.
 
-If either breaks, Lim'it shows "API changed" rather than a wrong number — but it stops being
+If either breaks, Lim'it shows "API changed" rather than a wrong number, but it stops being
 useful until the code is updated. Do not build anything important on top of it.
 
 ## Build from source
@@ -176,7 +176,7 @@ dotnet publish src/LimitTray.App -c Release -r win-x64 --self-contained true ^
 `IncludeNativeLibrariesForSelfExtract` is the flag that matters: without it WPF's native
 DLLs stay beside the executable and the "single file" is six files.
 
-Releases are cut by pushing a tag — `git tag v0.3.0 && git push origin v0.3.0` — which runs
+Releases are cut by pushing a tag (`git tag v0.3.0 && git push origin v0.3.0`), which runs
 [the release workflow](.github/workflows/release.yml): tests, publish, checksum, upload.
 
 ### Artwork
@@ -195,7 +195,7 @@ the ring. It sits outside `LimitTray.sln` so it never becomes part of the shippe
 ## How this was built
 
 Both rounds of this project were written by AI agents against a spec and a plan I wrote and
-reviewed, and nothing was committed on an agent's word that it worked — every task's build,
+reviewed, and nothing was committed on an agent's word that it worked. Every task's build,
 tests and observed behaviour were checked first.
 
 The first round (the collectors, the panel, the health model) was written by OpenAI's Codex,
@@ -209,7 +209,7 @@ looking at the running application rather than trusting a green suite.
 With 67 tests passing, the Codex side displayed nothing at all. `Encoding.UTF8` in .NET emits
 a BOM, so the first JSON-RPC write put `EF BB BF` in front of the message; app-server failed
 to deserialize it, wrote the error to a stderr nobody was reading, and answered nothing. No
-unit test could catch that — a fake process has no encoding. There is now a regression test
+unit test could catch that, because a fake process has no encoding. There is now a regression test
 asserting the encoding emits no preamble.
 
 The second is the mirror image. A percentage appeared to have vanished from the panel, and an
@@ -222,4 +222,4 @@ you look with is part of the experiment.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

@@ -178,7 +178,7 @@ public static class QuotaFormatter
 
     /// <summary>
     /// The value shown in the icon: the highest percentage among healthy snapshots.
-    /// Unhealthy snapshots are excluded entirely — an error must not look like zero.
+    /// Unhealthy snapshots are excluded entirely: an error must not look like zero.
     /// </summary>
     public static double? HighestPercent(IReadOnlyList<QuotaSnapshot> snapshots)
     {
