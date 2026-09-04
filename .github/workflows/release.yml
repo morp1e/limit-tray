@@ -1,0 +1,77 @@
+name: Release
+
+# Pushing a v* tag builds the executable and publishes it. The binary attached to
+# a release is therefore always the one this workflow built from that exact tag,
+# not something produced on a developer's machine.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build, e.g. v0.2.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      # A release that ships a failing build is worse than no release.
+      - name: Test
+        run: dotnet test --configuration Release
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $env:GITHUB_REF -replace '^refs/tags/', ''
+          } else {
+            '${{ github.event.inputs.tag }}'
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($tag -replace '^v', '')" >> $env:GITHUB_OUTPUT
+
+      # Self-contained and single file: the download needs no .NET installed.
+      # IncludeNativeLibrariesForSelfExtract is what folds WPF's native DLLs in;
+      # without it the publish is an exe plus five loose DLLs.
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish src/LimitTray.App `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none `
+            -p:Version=${{ steps.version.outputs.version }} `
+            --output publish/release
+
+      - name: Name and checksum the artifact
+        shell: pwsh
+        run: |
+          $name = "limit-tray-${{ steps.version.outputs.tag }}-win-x64.exe"
+          Move-Item publish/release/LimitTray.App.exe "publish/release/$name"
+          $hash = (Get-FileHash "publish/release/$name" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name" | Out-File "publish/release/$name.sha256" -Encoding ascii
+          Write-Host "$name  $hash"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: |
+            publish/release/*.exe
+            publish/release/*.sha256
+          fail_on_unmatched_files: true

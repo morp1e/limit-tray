@@ -176,7 +176,7 @@ public sealed class CodexCollector : IQuotaCollector
     }
 
     private const string InitializeMessage = """
-    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"limit-tray","title":"Lim'it","version":"0.1.0"}}}
+    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"limit-tray","title":"Lim'it","version":"0.2.0"}}}
     """;
 
     private const string InitializedNotification = """

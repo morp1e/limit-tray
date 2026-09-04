@@ -29,22 +29,47 @@ internal static class Program
 
     private static int Main(string[] args)
     {
-        var output = args.Length > 0
-            ? args[0]
-            : Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..",
-                "assets", "limit.ico");
+        // icon <path>   -> the multi-resolution .ico
+        // banner <path> -> the 1280x640 repository image
+        // mark <path> <size> -> a single square PNG of the mark alone
+        var command = args.Length > 0 ? args[0] : "icon";
+        var output = Path.GetFullPath(args.Length > 1 ? args[1] : DefaultPath(command));
 
-        output = Path.GetFullPath(output);
         var directory = Path.GetDirectoryName(output);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        var frames = Sizes.ToDictionary(size => size, RenderPng);
-        WriteIco(output, frames);
+        switch (command)
+        {
+            case "icon":
+                WriteIco(output, Sizes.ToDictionary(size => size, RenderPng));
+                break;
 
-        Console.WriteLine($"wrote {output} ({new FileInfo(output).Length} bytes, " +
-                          $"{frames.Count} sizes: {string.Join(", ", Sizes)})");
+            case "banner":
+                File.WriteAllBytes(output, RenderBanner());
+                break;
+
+            case "mark":
+                var size = args.Length > 2 ? int.Parse(args[2]) : 256;
+                File.WriteAllBytes(output, RenderPng(size));
+                break;
+
+            default:
+                Console.Error.WriteLine($"unknown command '{command}'; expected icon, banner or mark");
+                return 1;
+        }
+
+        Console.WriteLine($"wrote {output} ({new FileInfo(output).Length} bytes)");
         return 0;
     }
+
+    private static string DefaultPath(string command) =>
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "assets",
+            command switch
+            {
+                "banner" => "banner.png",
+                "mark" => "mark.png",
+                _ => "limit.ico",
+            });
 
     private static byte[] RenderPng(int size)
     {
@@ -58,6 +83,75 @@ internal static class Program
             DrawBackground(g, size);
             DrawGauge(g, size);
             if (size >= 24) DrawApostrophe(g, size);
+        }
+
+        using var stream = new MemoryStream();
+        bitmap.Save(stream, ImageFormat.Png);
+        return stream.ToArray();
+    }
+
+    /// <summary>
+    /// The repository image, at GitHub's social-preview size. The mark sits left of the
+    /// wordmark rather than above it, because the preview is cropped vertically in some
+    /// surfaces and a stacked layout loses its top half.
+    /// </summary>
+    private static byte[] RenderBanner()
+    {
+        const int width = 1280;
+        const int height = 640;
+        const int mark = 224;
+
+        using var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            using (var background = new SolidBrush(Background)) g.FillRectangle(background, 0, 0, width, height);
+
+            using var wordmarkFont = new Font("Segoe UI", 84f, FontStyle.Bold, GraphicsUnit.Pixel);
+            using var taglineFont = new Font("Segoe UI", 30f, FontStyle.Regular, GraphicsUnit.Pixel);
+
+            const string wordmark = "Lim'it";
+            const string line1 = "Claude Code and Codex CLI usage limits";
+            const string line2 = "in your Windows tray";
+
+            // Typographic formatting for both measuring and drawing. The default
+            // StringFormat pads each string by a font-dependent amount, so a bold
+            // wordmark and a regular tagline end up with visibly different left edges.
+            using var format = (StringFormat)StringFormat.GenericTypographic.Clone();
+            format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+
+            // The block is measured and then centred. Hard-coded offsets look centred
+            // only for the one string they were tuned against.
+            var wordmarkSize = g.MeasureString(wordmark, wordmarkFont, PointF.Empty, format);
+            var line1Size = g.MeasureString(line1, taglineFont, PointF.Empty, format);
+            var line2Size = g.MeasureString(line2, taglineFont, PointF.Empty, format);
+            var textWidth = Math.Max(wordmarkSize.Width, Math.Max(line1Size.Width, line2Size.Width));
+
+            const float gap = 56f;
+            var groupWidth = mark + gap + textWidth;
+            var left = (width - groupWidth) / 2f;
+            var centre = height / 2f;
+
+            // The mark comes from the same renderer as the icon, so the two cannot drift.
+            using (var markImage = Image.FromStream(new MemoryStream(RenderPng(mark))))
+            {
+                g.DrawImage(markImage, left, centre - mark / 2f, mark, mark);
+            }
+
+            var textLeft = left + mark + gap;
+            var blockHeight = wordmarkSize.Height + 22f + line1Size.Height + 8f + line2Size.Height;
+            var top = centre - blockHeight / 2f;
+
+            using var wordmarkBrush = new SolidBrush(Color.FromArgb(255, 244, 246, 248));
+            using var taglineBrush = new SolidBrush(Color.FromArgb(255, 150, 156, 166));
+
+            g.DrawString(wordmark, wordmarkFont, wordmarkBrush,
+                new PointF(textLeft, top), format);
+            g.DrawString(line1, taglineFont, taglineBrush,
+                new PointF(textLeft, top + wordmarkSize.Height + 22f), format);
+            g.DrawString(line2, taglineFont, taglineBrush,
+                new PointF(textLeft, top + wordmarkSize.Height + 22f + line1Size.Height + 8f), format);
         }
 
         using var stream = new MemoryStream();

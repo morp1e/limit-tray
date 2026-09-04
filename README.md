@@ -1,12 +1,53 @@
-# Lim'it
+<div align="center">
+  <img src="assets/banner.png" alt="Lim'it — Claude Code and Codex CLI usage limits in your Windows tray" width="640">
+</div>
 
-Claude Code and Codex CLI usage limits in your Windows tray. No session required.
+<p align="center">
+  <a href="https://github.com/morp1e/limit-tray/actions/workflows/ci.yml"><img src="https://github.com/morp1e/limit-tray/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/morp1e/limit-tray/releases/latest"><img src="https://img.shields.io/github/v/release/morp1e/limit-tray?color=4fc97f" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT licence"></a>
+</p>
 
-![Lim'it popup showing Claude and Codex usage](docs/screenshot.png)
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#why-this-exists">Why this exists</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#security-and-privacy">Security</a> ·
+  <a href="#build-from-source">Build from source</a>
+</p>
 
 Both agents track a 5-hour and a 7-day window, but each hides that number inside its own
 interactive session — `/usage` in Claude Code, `/status` in Codex. Lim'it puts both in one
 place, so "how much do I have left?" does not cost you a session.
+
+![Lim'it popup showing Claude and Codex usage](docs/screenshot.png)
+
+## Download
+
+**[Download the latest release](https://github.com/morp1e/limit-tray/releases/latest)** —
+one file, 64-bit Windows. Nothing to install: it carries its own .NET runtime, which is
+also why it is around 70 MB.
+
+Run it and it appears in the tray. Left-click for the panel, right-click for the menu
+(**Start with Windows**, **Exit**). Startup is off until you turn it on.
+
+You need Windows and an account already logged into whichever agent you want to track.
+Lim'it reads what Claude Code and Codex have already authenticated — it never asks you to
+log in again, and it has no settings file to fill in.
+
+> **Windows will warn you the first time.** The executable is not code-signed, so
+> SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*. Every
+> release ships a `.sha256` file next to the binary if you would rather verify it first:
+>
+> ```powershell
+> Get-FileHash .\limit-tray-v0.2.0-win-x64.exe -Algorithm SHA256
+> ```
+>
+> The binary is built by [GitHub Actions from the tagged commit](.github/workflows/release.yml),
+> not uploaded from a developer's machine.
+
+The interface follows your Windows language — Turkish or English. Pass `--lang en` or
+`--lang tr` to override it.
 
 ## Why this exists
 
@@ -31,62 +72,6 @@ The one thing Lim'it is deliberate about: **an error never looks like `0%`.** If
 missing, the endpoint rate-limits, or an upstream API changes shape, the panel says so in
 words. `0%` only ever means a real, measured zero. Getting that wrong is the one failure that
 would make a quota display worse than useless.
-
-## Requirements
-
-Windows, and an account logged into whichever agent you want to track. Lim'it reads whatever
-Claude Code and Codex have already authenticated — it never asks you to log in again.
-
-To build from source you need the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
-The standalone executable below needs nothing installed at all.
-
-## Run
-
-```
-dotnet run --project src/LimitTray.App
-```
-
-Left-click the tray icon to open the panel. Right-click for the menu: **Start with
-Windows** and **Exit**. Startup is off until you turn it on, and it writes a single
-per-user `Run` entry that the same menu item removes again.
-
-The interface follows your Windows language — Turkish or English. To override it, pass
-`--lang en` or `--lang tr` (the `--lang=en` form works too):
-
-```
-dotnet run --project src/LimitTray.App -- --lang en
-```
-
-### Build a standalone executable
-
-Publish a self-contained, single-file executable for 64-bit Windows:
-
-```
-dotnet publish src/LimitTray.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
-```
-
-The result is `publish/win-x64/LimitTray.App.exe`. It carries its own .NET runtime, so it runs
-on a machine with nothing installed — which is also why it is around 150 MB. If you already
-have the .NET 9 Desktop Runtime, drop `--self-contained true -p:PublishSingleFile=true` for a
-much smaller build.
-
-## Test
-
-```
-dotnet test
-```
-
-## Application icon
-
-`assets/limit.ico` is generated, not drawn by hand, and is committed. To regenerate it:
-
-```
-dotnet run --project tools/IconGen -- assets/limit.ico
-```
-
-The tool draws the mark from scratch at each of the nine sizes rather than downscaling one
-bitmap, and drops the apostrophe below 24 pixels where it would only muddy the ring. It is
-deliberately outside `LimitTray.sln` so it never becomes part of the shipped build.
 
 ## How it works
 
@@ -170,20 +155,68 @@ Neither data source is a documented, supported API.
 If either breaks, Lim'it shows "API changed" rather than a wrong number — but it stops being
 useful until the code is updated. Do not build anything important on top of it.
 
+## Build from source
+
+You need the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+
+```
+dotnet run --project src/LimitTray.App
+dotnet run --project src/LimitTray.App -- --lang en
+dotnet test
+```
+
+To produce the same single file the release ships:
+
+```
+dotnet publish src/LimitTray.App -c Release -r win-x64 --self-contained true ^
+  -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true ^
+  -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o publish/win-x64
+```
+
+`IncludeNativeLibrariesForSelfExtract` is the flag that matters: without it WPF's native
+DLLs stay beside the executable and the "single file" is six files.
+
+Releases are cut by pushing a tag — `git tag v0.3.0 && git push origin v0.3.0` — which runs
+[the release workflow](.github/workflows/release.yml): tests, publish, checksum, upload.
+
+### Artwork
+
+`assets/limit.ico`, `assets/banner.png` and `assets/mark.png` are generated and committed:
+
+```
+dotnet run --project tools/IconGen -- icon assets/limit.ico
+dotnet run --project tools/IconGen -- banner assets/banner.png
+```
+
+The generator draws the mark from scratch at each of the nine icon sizes rather than
+downscaling one bitmap, and drops the apostrophe below 24 pixels where it would only muddy
+the ring. It sits outside `LimitTray.sln` so it never becomes part of the shipped build.
+
 ## How this was built
 
-The C# was written by OpenAI's Codex, task by task, against a spec and an implementation plan
-I wrote and reviewed. Every task's build, tests and behaviour were verified before it was
-committed. The spec and plan are in [`docs/`](docs/) if you want to see the actual process,
-including the defects that came out of it.
+Both rounds of this project were written by AI agents against a spec and a plan I wrote and
+reviewed, and nothing was committed on an agent's word that it worked — every task's build,
+tests and observed behaviour were checked first.
 
-One of those is worth repeating, because it is why the plan insists on running the real app
-instead of trusting a green test suite: with 67 tests passing, the Codex side displayed
-nothing at all. `Encoding.UTF8` in .NET emits a BOM, so the first JSON-RPC write put
-`EF BB BF` in front of the message; app-server failed to deserialize it, wrote the error to a
-stderr nobody was reading, and answered nothing. No unit test could catch that — a fake
-process has no encoding. There is now a regression test asserting the encoding emits no
-preamble.
+The first round (the collectors, the panel, the health model) was written by OpenAI's Codex,
+task by task. The second round (usage history, burn-rate projection, notifications, the icon)
+was written by Claude. The spec and plan are in [`docs/`](docs/) if you want to see the actual
+process, including the defects that came out of it.
+
+Two of those are worth repeating, because between them they are the whole argument for
+looking at the running application rather than trusting a green suite.
+
+With 67 tests passing, the Codex side displayed nothing at all. `Encoding.UTF8` in .NET emits
+a BOM, so the first JSON-RPC write put `EF BB BF` in front of the message; app-server failed
+to deserialize it, wrote the error to a stderr nobody was reading, and answered nothing. No
+unit test could catch that — a fake process has no encoding. There is now a regression test
+asserting the encoding emits no preamble.
+
+The second is the mirror image. A percentage appeared to have vanished from the panel, and an
+hour went into hunting it. The panel had been correct the entire time: the screenshot tool
+had not declared DPI awareness, so on a 150% display it measured a 480×930 window as 320×620
+and cropped the right third away. Looking at the running app is necessary, but the instrument
+you look with is part of the experiment.
 
 `AGENTS.md` in this repo is instruction context for AI coding agents working on it.
 
