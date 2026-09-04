@@ -1,10 +1,14 @@
 using System.Globalization;
+using LimitTray.Core.History;
 using LimitTray.Core.Model;
 
 namespace LimitTray.Core.Presentation;
 
 public static class QuotaFormatter
 {
+    /// <summary>Separator between two facts on one line.</summary>
+    public const string Separator = " · ";
+
     public static Strings DefaultStrings { get; set; } =
         Strings.ForCulture(CultureInfo.CurrentUICulture);
     public const double CautionThreshold = 60.0;
@@ -68,6 +72,69 @@ public static class QuotaFormatter
         HealthState.Stale => strings.Stale,
         _ => "",
     };
+
+    /// <summary>
+    /// A percentage that keeps one decimal below 10, so a slow burn rate does not get
+    /// rounded up into a number that overstates it.
+    /// </summary>
+    public static string PrecisePercent(double value, Strings strings)
+    {
+        var rounded = Math.Abs(value) < 10.0
+            ? value.ToString("0.#", CultureInfo.InvariantCulture)
+            : Math.Round(value, MidpointRounding.AwayFromZero)
+                .ToString("0", CultureInfo.InvariantCulture);
+
+        return string.Format(CultureInfo.InvariantCulture, strings.PercentFormat, rounded);
+    }
+
+    /// <summary>A bare duration such as "2h 10m", with no "until reset" framing.</summary>
+    public static string Duration(TimeSpan value, Strings strings)
+    {
+        if (value < TimeSpan.FromMinutes(1)) return strings.DurationUnderMinute;
+
+        if (value >= TimeSpan.FromDays(1))
+            return string.Format(CultureInfo.InvariantCulture, strings.DurationDaysHours,
+                value.Days, value.Hours);
+
+        if (value >= TimeSpan.FromHours(1))
+            return string.Format(CultureInfo.InvariantCulture, strings.DurationHoursMinutes,
+                value.Hours, value.Minutes);
+
+        return string.Format(CultureInfo.InvariantCulture, strings.DurationMinutes, value.Minutes);
+    }
+
+    /// <summary>The measured consumption rate, e.g. "12% per hour".</summary>
+    public static string Pace(BurnRateEstimate estimate, Strings strings) =>
+        string.Format(CultureInfo.InvariantCulture, strings.Pace,
+            PrecisePercent(estimate.PercentPerHour, strings));
+
+    /// <summary>
+    /// What the rate implies. When the window resets before the projection lands, the
+    /// projection is not shown at all: a countdown to an exhaustion that cannot happen
+    /// would be a true number telling a false story.
+    /// </summary>
+    public static string Projection(BurnRateEstimate estimate, Strings strings) =>
+        estimate.ResetsFirst
+            ? strings.ResetsBeforeFull
+            : string.Format(CultureInfo.InvariantCulture, strings.FullIn,
+                Duration(estimate.TimeToFull, strings));
+
+    /// <summary>The full burn-rate line: rate first, then what it implies.</summary>
+    public static string BurnRate(BurnRateEstimate estimate, Strings strings) =>
+        Pace(estimate, strings) + Separator + Projection(estimate, strings);
+
+    public static string ProviderTitle(string provider, Strings strings) => provider switch
+    {
+        "claude" => strings.ClaudeUsage,
+        "codex" => strings.CodexUsage,
+        _ => provider,
+    };
+
+    public static string WindowTitle(WindowKind kind, Strings strings) =>
+        kind == WindowKind.Session ? strings.Session : strings.Weekly;
+
+    public static string WindowSubtitle(WindowKind kind, Strings strings) =>
+        kind == WindowKind.Session ? strings.SessionWindow : strings.WeeklyWindow;
 
     public static string ShortName(string provider) => provider switch
     {
