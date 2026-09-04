@@ -21,6 +21,12 @@ supporting more providers. If Lim'it does not fit you, try
 [brink](https://github.com/semihtalii/brink), or
 [claude-codex-usage-dashboard](https://github.com/frankchiu-dev/claude-codex-usage-dashboard).
 
+Beyond the two numbers, it answers the question you actually have when you look at
+them: **how fast am I burning through this, and will it last?** From its own observations
+it fits a consumption rate and projects when the window fills — and when the window resets
+before that can happen, it says so instead of showing a countdown to an event that will
+never arrive.
+
 The one thing Lim'it is deliberate about: **an error never looks like `0%`.** If the token is
 missing, the endpoint rate-limits, or an upstream API changes shape, the panel says so in
 words. `0%` only ever means a real, measured zero. Getting that wrong is the one failure that
@@ -40,7 +46,9 @@ The standalone executable below needs nothing installed at all.
 dotnet run --project src/LimitTray.App
 ```
 
-Click the tray icon to open the panel. Right-click for exit.
+Left-click the tray icon to open the panel. Right-click for the menu: **Start with
+Windows** and **Exit**. Startup is off until you turn it on, and it writes a single
+per-user `Run` entry that the same menu item removes again.
 
 The interface follows your Windows language — Turkish or English. To override it, pass
 `--lang en` or `--lang tr` (the `--lang=en` form works too):
@@ -68,6 +76,18 @@ much smaller build.
 dotnet test
 ```
 
+## Application icon
+
+`assets/limit.ico` is generated, not drawn by hand, and is committed. To regenerate it:
+
+```
+dotnet run --project tools/IconGen -- assets/limit.ico
+```
+
+The tool draws the mark from scratch at each of the nine sizes rather than downscaling one
+bitmap, and drops the apostrophe below 24 pixels where it would only muddy the ring. It is
+deliberately outside `LimitTray.sln` so it never becomes part of the shipped build.
+
 ## How it works
 
 The two providers expose their quota in completely different ways, so Lim'it reads them
@@ -91,6 +111,29 @@ the data would otherwise look stale while being perfectly current. If app-server
 started, Lim'it falls back to the last `rate_limits` block written into
 `~/.codex/sessions/**/rollout-*.jsonl`, and clearly marks that data as stale.
 
+**History** — every fresh reading is kept in memory and mirrored to
+`%LOCALAPPDATA%\limit-tray\history.json`. It buys three things:
+
+- **A cold start during an outage is not blank.** The last known values are shown
+  immediately, marked stale, carrying the age they actually have rather than pretending
+  to be current.
+- **A burn rate.** A least-squares fit over the retained samples gives percent-per-hour,
+  and from it a projection of when the window fills. It appears only when the history can
+  support it — at least three samples spanning at least ten minutes, on a window that is
+  actually moving. Below that the line is simply absent, because a projection from two
+  points an hour apart is a guess wearing a number's clothes.
+- **A trend line.** The small sparkline under each bar plots the retained samples against
+  real time, so a pause in usage looks like a pause.
+
+A drop in the percentage means the window rolled over, so the series is dropped rather
+than fitted across the reset. The file holds percentages, window lengths and timestamps
+and nothing else; if it is missing or corrupt the app behaves exactly as it would on a
+first run.
+
+**Notifications** — crossing 85% raises one balloon per window per fill. Staying above it
+is silent, and falling back below it arms the next crossing. A tool that warns every two
+minutes gets muted, and a muted warning is worth nothing.
+
 All logic lives in `LimitTray.Core`, which has no WPF dependency and is covered by tests.
 `LimitTray.App` only draws.
 
@@ -107,6 +150,10 @@ with them, so:
   type name. There is a test asserting the token cannot leak into error details.
 - Lim'it has no telemetry and no analytics, and makes no network request other than the usage
   endpoint above.
+- The one file it writes is `%LOCALAPPDATA%\limit-tray\history.json`: percentages, window
+  lengths and timestamps. No token, no account identifier, no request or response body, and
+  no error text — error detail can carry an exception message, so it is deliberately never
+  persisted. Deleting the file loses the trend and nothing else.
 
 The code is short and the relevant file is
 [`ClaudeCredentialReader.cs`](src/LimitTray.Core/Claude/ClaudeCredentialReader.cs) — please
