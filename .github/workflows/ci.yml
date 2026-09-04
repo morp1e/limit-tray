@@ -16,3 +16,9 @@ jobs:
           dotnet-version: 9.0.x
       - run: dotnet build --configuration Release
       - run: dotnet test --configuration Release
+
+      # A rule nobody can enforce is a rule that gets broken. This one was, 68 times
+      # in a day, so it is checked here instead of remembered.
+      - name: no-em-dash
+        shell: pwsh
+        run: ./.github/scripts/Test-NoEmDash.ps1
