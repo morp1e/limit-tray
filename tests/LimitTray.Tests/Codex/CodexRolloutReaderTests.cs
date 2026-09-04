@@ -71,6 +71,32 @@ public class CodexRolloutReaderTests : IDisposable
     }
 
     [Fact]
+    public void ReadLatest_DatesTheValueByTheFileNotByTheRead()
+    {
+        // The panel must not say "updated just now" above "data is stale". The file
+        // write time is the closest honest age available for a value read off disk.
+        var written = new DateTime(2026, 9, 3, 17, 30, 0, DateTimeKind.Utc);
+        WriteRollout("rollout-a.jsonl",
+            """{"rate_limits":{"primary":{"used_percent":7.0}}}""", written);
+
+        var snap = CodexRolloutReader.ReadLatest(_root, Now);
+
+        Assert.Equal(new DateTimeOffset(written, TimeSpan.Zero), snap!.FetchedAt);
+    }
+
+    [Fact]
+    public void ReadLatest_FileWrittenInTheFuture_FallsBackToNow()
+    {
+        WriteRollout("rollout-a.jsonl",
+            """{"rate_limits":{"primary":{"used_percent":7.0}}}""",
+            new DateTime(2026, 9, 4, 6, 0, 0, DateTimeKind.Utc));
+
+        var snap = CodexRolloutReader.ReadLatest(_root, Now);
+
+        Assert.Equal(Now, snap!.FetchedAt);
+    }
+
+    [Fact]
     public void ReadLatest_NoFiles_ReturnsNull() =>
         Assert.Null(CodexRolloutReader.ReadLatest(_root, Now));
 

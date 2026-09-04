@@ -68,14 +68,35 @@ public static class CodexRolloutReader
 
                 if (session is null && weekly is null) continue;
 
+                // The value is as old as the file, not as old as this read. Stamping it
+                // with `now` makes the panel say "updated just now" directly under "data
+                // is stale" -- two statements that cannot both be true. The file write
+                // time is the closest honest answer available. A clock skew that puts it
+                // in the future is clamped back to now.
+                var written = FileWriteTime(path);
+                var fetchedAt = written is { } stamp && stamp < now ? stamp : now;
+
                 return new QuotaSnapshot(
                     CodexRateLimitsParser.Provider, session, weekly,
-                    HealthState.Stale, now,
+                    HealthState.Stale, fetchedAt,
                     "app-server yok, son bilinen deger dosyadan okundu");
             }
         }
 
         return null;
+    }
+
+    private static DateTimeOffset? FileWriteTime(string path)
+    {
+        try
+        {
+            return new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private static bool TryFind(JsonElement root, out JsonElement limits)
