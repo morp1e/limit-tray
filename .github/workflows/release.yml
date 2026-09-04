@@ -67,11 +67,23 @@ jobs:
           "$hash  $name" | Out-File "publish/release/$name.sha256" -Encoding ascii
           Write-Host "$name  $hash"
 
+      # The GitHub CLI is preinstalled on the runner. A repository that asks people
+      # to trust an unsigned binary should not add a third-party action to the step
+      # that produces it.
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          files: |
-            publish/release/*.exe
-            publish/release/*.sha256
-          fail_on_unmatched_files: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          $assets = Get-ChildItem publish/release | Where-Object { $_.Extension -in '.exe', '.sha256' }
+          if ($assets.Count -lt 2) { throw "expected the executable and its checksum, found $($assets.Count)" }
+
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag $assets.FullName --clobber
+          } else {
+            gh release create $tag $assets.FullName `
+              --title $tag `
+              --generate-notes `
+              --verify-tag
+          }
