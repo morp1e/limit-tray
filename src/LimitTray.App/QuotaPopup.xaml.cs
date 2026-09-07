@@ -14,11 +14,9 @@ namespace LimitTray.App;
 public partial class QuotaPopup : Window
 {
     /// <summary>
-    /// The real width available inside the window: 320 minus the two border pixels
-    /// minus the 16 pixel margin on each side. Pinning content to a wider value than
-    /// this pushes the right-aligned percentage against the frame.
+    /// 360 minus the window border, outer margins and provider card padding/border.
     /// </summary>
-    private const double ContentWidth = 286;
+    private const double ContentWidth = 296;
     private const double SparklineHeight = 22;
     private const int MinimumSparklineSamples = 5;
     private const double MinimumSparklineRange = 1.0;
@@ -74,12 +72,12 @@ public partial class QuotaPopup : Window
         var panel = new StackPanel
         {
             Width = ContentWidth,
-            Margin = new Thickness(0, 0, 0, 16),
+            Margin = new Thickness(0),
         };
 
         panel.Children.Add(Text(
             QuotaFormatter.ProviderTitle(snapshot.Provider, _strings),
-            15, Brushes.White, FontWeights.SemiBold, new Thickness(0, 0, 0, 8)));
+            16, Brushes.White, FontWeights.SemiBold, new Thickness(0, 0, 0, 16)));
 
         if (snapshot.Session is null && snapshot.Weekly is null)
         {
@@ -87,13 +85,24 @@ public partial class QuotaPopup : Window
                 QuotaFormatter.HealthText(snapshot, _strings),
                 12, new SolidColorBrush(Color.FromRgb(235, 87, 87)),
                 FontWeights.Normal, new Thickness(0)));
-            return panel;
+            return ProviderCard(panel);
         }
 
         AddWindowRow(panel, WindowKind.Session, snapshot.Session, snapshot, now);
         AddWindowRow(panel, WindowKind.Weekly, snapshot.Weekly, snapshot, now);
-        return panel;
+        return ProviderCard(panel);
     }
+
+    private static Border ProviderCard(UIElement content) => new()
+    {
+        Background = new SolidColorBrush(Color.FromRgb(26, 30, 37)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(45, 52, 63)),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(14),
+        Margin = new Thickness(0, 0, 0, 12),
+        Child = content,
+    };
 
     /// <summary>
     /// Every line of text in the panel is built here, with an explicit width and
@@ -123,6 +132,14 @@ public partial class QuotaPopup : Window
     {
         if (window is null) return;
 
+        if (kind == WindowKind.Weekly && snapshot.Session is not null)
+            parent.Children.Add(new Border
+            {
+                Height = 1,
+                Background = new SolidColorBrush(Color.FromRgb(45, 52, 63)),
+                Margin = new Thickness(0, 14, 0, 14),
+            });
+
         var stale = snapshot.Health == HealthState.Stale;
         var colour = TrayIconRenderer.ColorFor(QuotaFormatter.SeverityFor(window.Percent));
         var brush = new SolidColorBrush(Color.FromArgb(
@@ -132,7 +149,7 @@ public partial class QuotaPopup : Window
 
         parent.Children.Add(Text(
             QuotaFormatter.WindowSubtitle(kind, _strings),
-            11, Brushes.Gray, FontWeights.Normal, new Thickness(0, 0, 0, 4)));
+            11, new SolidColorBrush(Color.FromRgb(158, 168, 184)), FontWeights.Normal, new Thickness(0, 0, 0, 10)));
 
         parent.Children.Add(BuildBar(window, brush));
 
@@ -142,7 +159,7 @@ public partial class QuotaPopup : Window
         parent.Children.Add(Text(
             QuotaFormatter.ResetsIn(window.ResetsAt, now, _strings)
             + (stale ? QuotaFormatter.Separator + QuotaFormatter.HealthText(snapshot, _strings) : ""),
-            11, Brushes.Gray, FontWeights.Normal, new Thickness(0, 0, 0, 2)));
+            11, new SolidColorBrush(Color.FromRgb(158, 168, 184)), FontWeights.Normal, new Thickness(0, 0, 0, 2)));
 
         AddBurnRate(parent, snapshot, kind, now);
     }
@@ -158,7 +175,7 @@ public partial class QuotaPopup : Window
         {
             Text = QuotaFormatter.Percent(window.Percent, _strings),
             Foreground = brush,
-            FontSize = 15,
+            FontSize = 24,
             FontWeight = FontWeights.SemiBold,
         };
         DockPanel.SetDock(percent, Dock.Right);
@@ -167,8 +184,10 @@ public partial class QuotaPopup : Window
         header.Children.Add(new TextBlock
         {
             Text = QuotaFormatter.WindowTitle(kind, _strings),
-            Foreground = stale ? Brushes.Gray : Brushes.White,
+            Foreground = stale ? Brushes.Gray : new SolidColorBrush(Color.FromRgb(222, 228, 237)),
             FontSize = 13,
+            FontWeight = FontWeights.Medium,
+            VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
 
@@ -180,17 +199,17 @@ public partial class QuotaPopup : Window
         var track = new Border
         {
             Width = ContentWidth,
-            Height = 6,
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 45)),
-            CornerRadius = new CornerRadius(3),
-            Margin = new Thickness(0, 0, 0, 4),
+            Height = 8,
+            Background = new SolidColorBrush(Color.FromRgb(49, 57, 70)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 0, 10),
         };
 
         track.Child = new Border
         {
-            Height = 6,
+            Height = 8,
             Background = brush,
-            CornerRadius = new CornerRadius(3),
+            CornerRadius = new CornerRadius(4),
             HorizontalAlignment = HorizontalAlignment.Left,
             Width = Math.Max(0, Math.Min(100, window.Percent)) / 100.0 * ContentWidth,
         };

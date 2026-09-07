@@ -82,6 +82,9 @@ public partial class App : System.Windows.Application
         StartCollector(BuildClaudeCollector(_transport));
         StartCollector(BuildCodexCollector());
 
+        if (Array.Exists(e.Args, argument => string.Equals(argument, "--show", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(new Action(TogglePopup));
+
     }
 
     private ContextMenuStrip BuildMenu()
