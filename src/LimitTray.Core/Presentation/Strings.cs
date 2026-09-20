@@ -3,6 +3,19 @@ using System.Globalization;
 namespace LimitTray.Core.Presentation;
 
 /// <summary>
+/// The few symbols the panel draws as text. They are language-neutral, but they are
+/// non-ASCII, and this file is the one place source may carry that.
+/// </summary>
+public static class Glyphs
+{
+    public const string Refresh = "↻";   // clockwise open circle arrow
+    public const string Settings = "⚙";  // gear
+    public const string Back = "‹";      // single left-pointing angle quotation mark
+    public const string Terminal = "⌁";  // electric arrow
+    public const string Unknown = "?";
+}
+
+/// <summary>
 /// The application's user-facing text for one language. Every displayed string lives
 /// here, including the tray menu and the balloon notifications.
 ///

@@ -22,6 +22,9 @@ public static class WindowBackdrop
     private const int DwmwcpRound = 2;
     private const uint DwmwaColorNone = 0xFFFFFFFE;
 
+    /// <summary>Windows 11 is where DWM rounds a frameless window's corners.</summary>
+    public static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 

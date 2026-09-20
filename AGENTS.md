@@ -17,7 +17,7 @@ This file is context for AI coding agents working on this repository. If you are
 - **The token is never logged, written to disk, displayed, or included in an exception
   message.** Error text carries a status code or an exception type name, nothing more. There
   is a test enforcing this; do not weaken it.
-- **No external NuGet dependencies** beyond the test project's xUnit. This includes the
+- **No external NuGet dependencies** beyond the test project's xUnit and test SDK. This includes the
   icon generator in `tools/IconGen`, which reaches System.Drawing through the Windows
   Desktop reference pack rather than a package.
 - **A projection is only ever shown when the measurements support it.** The burn rate
@@ -62,6 +62,10 @@ This file is context for AI coding agents working on this repository. If you are
 - **Visual work follows the mockup, not the brief.** In v0.3 the pages built from a text
   brief compiled and passed, and did not look like the design that had been chosen. The
   agent that saw the mockup does the visual layer and checks it on screen.
+- **Accepted exception to the "never substitute a number" rule:** `CodexRateLimitsParser`
+  fills a missing `windowDurationMins` with 5 hours / 7 days. The live app-server omits the
+  field in some notifications, the value only labels the window and feeds retention, and
+  the percentage itself is never guessed. Reviewed 2026-09-20 and kept on purpose.
 - **A green test suite is not proof the app works.** The unit tests here talk to fakes, and a
   fake process has no encoding, no real stdio and no clock. Run the app against the real
   providers before claiming a change works. The two worst defects in this project's history,

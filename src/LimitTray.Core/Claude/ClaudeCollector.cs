@@ -57,6 +57,13 @@ public sealed class ClaudeCollector : IQuotaCollector
             _wake = wake;
             var (snapshot, rateLimited) = await FetchOnce(ct).ConfigureAwait(false);
             _backingOff = rateLimited;
+            if (rateLimited && wake.IsCancellationRequested)
+            {
+                // A click landed while the request was in flight. The endpoint has just
+                // said stop; that click must not shorten the backoff it asked for.
+                wake = new CancellationTokenSource();
+                _wake = wake;
+            }
 
             // ORDER IS CRITICAL: publish first, then wait. Reversing this leaves
             // the application empty for one full interval at startup and makes

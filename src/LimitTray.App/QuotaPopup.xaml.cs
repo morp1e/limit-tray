@@ -16,6 +16,7 @@ namespace LimitTray.App;
 public partial class QuotaPopup : Window
 {
     private const double PageWidth = 360;
+    private int _slideGeneration;
 
     private readonly PanelViewModel _panel;
     private readonly SettingsViewModel _settings;
@@ -48,6 +49,14 @@ public partial class QuotaPopup : Window
     {
         WindowBackdrop.ApplyNativeShape(this, dark);
         PaintGlows(dark);
+        // Windows 10 has no DWM corner rounding; a rounded border inside a square window
+        // would show black corners, so the border follows the window there.
+        if (!WindowBackdrop.IsWindows11)
+        {
+            RootBorder.CornerRadius = new CornerRadius(0);
+            RootClip.RadiusX = 0;
+            RootClip.RadiusY = 0;
+        }
     }
 
     /// <summary>
@@ -141,17 +150,31 @@ public partial class QuotaPopup : Window
         {
             EasingFunction = ease,
         };
-        outgoingAnimation.Completed += (_, _) => outgoing.Visibility = Visibility.Collapsed;
+        // A completion from an earlier slide must not collapse what a later slide brought
+        // in; reversing within 150 ms used to leave the popup blank.
+        var generation = ++_slideGeneration;
+        outgoingAnimation.Completed += (_, _) =>
+        {
+            if (generation == _slideGeneration) outgoing.Visibility = Visibility.Collapsed;
+        };
         outgoingTransform.BeginAnimation(TranslateTransform.XProperty, outgoingAnimation);
         incomingTransform.BeginAnimation(TranslateTransform.XProperty, incomingAnimation);
     }
 
+    /// <summary>
+    /// Bottom-right of the work area of the screen the cursor is on, which is the screen
+    /// whose tray was clicked. WorkArea alone would always pick the primary monitor.
+    /// </summary>
     private void PositionNearTray()
     {
-        var area = SystemParameters.WorkArea;
         var height = ActualHeight > 0 ? ActualHeight : DesiredSize.Height;
-        Left = area.Right - Width - 12;
-        Top = area.Bottom - height - 12;
+        var screen = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position);
+        var work = screen.WorkingArea;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var right = work.Right / dpi.DpiScaleX;
+        var bottom = work.Bottom / dpi.DpiScaleY;
+        Left = right - Width - 12;
+        Top = bottom - height - 12;
     }
 
     private void OnDeactivated(object? sender, EventArgs e) => Hide();

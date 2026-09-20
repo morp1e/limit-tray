@@ -34,8 +34,8 @@ public sealed class PanelViewModel : ObservableObject
     public ObservableCollection<ProviderCardViewModel> Cards { get; } = new();
     public string FooterText { get => _footerText; private set => Set(ref _footerText, value); }
     public string VersionText { get; }
-    public string RefreshGlyph => "↻";
-    public string SettingsGlyph => "⚙";
+    public string RefreshGlyph => Glyphs.Refresh;
+    public string SettingsGlyph => Glyphs.Settings;
     public string RefreshText => _strings.Refresh;
     public string SettingsText => _strings.Settings;
     public bool IsRefreshing { get => _isRefreshing; private set => Set(ref _isRefreshing, value); }
@@ -50,13 +50,32 @@ public sealed class PanelViewModel : ObservableObject
         RaisePropertyChanged(nameof(SettingsText));
     }
 
+    /// <summary>
+    /// Refreshes existing cards in place and only adds or removes when the set of
+    /// providers changes, so a reading never rebuilds the visual tree.
+    /// </summary>
     public void Update(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
     {
-        Cards.Clear();
-        foreach (var snapshot in snapshots)
+        for (var index = 0; index < snapshots.Count; index++)
         {
-            Cards.Add(new ProviderCardViewModel(
-                snapshot, _history, _app.Settings, _strings, now, _app));
+            var snapshot = snapshots[index];
+            var existing = Cards.FirstOrDefault(card => card.Provider == snapshot.Provider);
+            if (existing is null)
+            {
+                Cards.Insert(Math.Min(index, Cards.Count), new ProviderCardViewModel(
+                    snapshot, _history, _app.Settings, _strings, now, _app));
+                continue;
+            }
+
+            existing.Refresh(snapshot, _app.Settings, _strings, now);
+            var currentIndex = Cards.IndexOf(existing);
+            if (currentIndex != index && index < Cards.Count) Cards.Move(currentIndex, index);
+        }
+
+        for (var index = Cards.Count - 1; index >= 0; index--)
+        {
+            if (snapshots.All(snapshot => snapshot.Provider != Cards[index].Provider))
+                Cards.RemoveAt(index);
         }
 
         FooterText = snapshots.Count == 0

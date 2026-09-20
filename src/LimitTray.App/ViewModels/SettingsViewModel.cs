@@ -31,6 +31,8 @@ public sealed class SettingsViewModel : ObservableObject
         BackCommand = new RelayCommand(_showPanel);
         OpenGitHubCommand = new RelayCommand(OpenGitHub);
         _app.SettingsChanged += OnSettingsChanged;
+        // The tray menu can flip the same registry key; both surfaces read it back.
+        _app.StartupChanged += () => RaisePropertyChanged(nameof(StartWithWindows));
     }
 
     public IReadOnlyList<Choice<ThemeMode>> ThemeOptions { get; private set; }
@@ -104,13 +106,14 @@ public sealed class SettingsViewModel : ObservableObject
         {
             StartupRegistration.SetEnabled(value, _app.StartupArguments);
             RaisePropertyChanged();
+            _app.NotifyStartupChanged();
         }
     }
 
 
     public string SettingsText => _strings.Settings;
     public string BackText => "\u2039 " + _strings.BackToPanel;
-    public string BackGlyph => "\u2039";
+    public string BackGlyph => Glyphs.Back;
     public string AppearanceGroupText => _strings.GroupAppearance;
     public string DataGroupText => _strings.GroupData;
     public string TrayGroupText => _strings.GroupTray;
@@ -252,10 +255,19 @@ public sealed class SettingsViewModel : ObservableObject
 
     private static void OpenGitHub()
     {
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        // A missing URL handler throws Win32Exception; on the UI thread that would take
+        // the tray process down over a link.
+        try
         {
-            FileName = "https://github.com/morp1e/limit-tray",
-            UseShellExecute = true,
-        });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://github.com/morp1e/limit-tray",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // Nothing to show: the address is printed next to the link.
+        }
     }
 }

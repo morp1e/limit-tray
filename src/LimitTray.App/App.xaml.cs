@@ -141,6 +141,7 @@ public partial class App : System.Windows.Application
         // The state is read back rather than assumed: the key can be denied by policy,
         // and a tick that lies is worse than one that refuses to move.
         _startupItem.Checked = StartupRegistration.IsEnabled();
+        StartupChanged?.Invoke();
     }
 
     /// <summary>
@@ -188,7 +189,7 @@ public partial class App : System.Windows.Application
             Task.Delay,
             () => TimeSpan.FromSeconds(_settings.RefreshSeconds));
 
-    private static IQuotaCollector BuildCodexCollector()
+    private IQuotaCollector BuildCodexCollector()
     {
         var binary = CodexBinaryLocator.LocateDefault();
 
@@ -199,20 +200,43 @@ public partial class App : System.Windows.Application
             () => DateTimeOffset.Now,
             Task.Delay,
             () => CodexRolloutReader.ReadLatest(
-                CodexRolloutReader.DefaultSessionsRoot, DateTimeOffset.Now));
+                CodexRolloutReader.DefaultSessionsRoot, DateTimeOffset.Now),
+            () => TimeSpan.FromSeconds(_settings.RefreshSeconds));
     }
 
+    /// <summary>How long a collector waits after an unexpected fault before it is watched again.</summary>
+    private static readonly TimeSpan CollectorRestartDelay = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Watches a collector for the life of the process. A fault that escapes the
+    /// collector is reported as ProtocolBroken with the exception type, and the watch is
+    /// restarted after a pause; an unobserved faulted task would have frozen that
+    /// provider silently until the next launch.
+    /// </summary>
     private void StartCollector(IQuotaCollector collector)
     {
         _collectors.Add(collector);
         _ = Task.Run(async () =>
         {
-            try
+            while (!_cts.IsCancellationRequested)
             {
-                await foreach (var snapshot in collector.Watch(_cts.Token))
-                    _store.Apply(snapshot);
+                try
+                {
+                    await foreach (var snapshot in collector.Watch(_cts.Token))
+                        _store.Apply(snapshot);
+                    return;
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex)
+                {
+                    _store.Apply(QuotaSnapshot.Unhealthy(
+                        collector.Provider, HealthState.ProtocolBroken, DateTimeOffset.Now,
+                        "Toplayici hatasi: " + ex.GetType().Name));
+                }
+
+                try { await Task.Delay(CollectorRestartDelay, _cts.Token); }
+                catch (OperationCanceledException) { return; }
             }
-            catch (OperationCanceledException) { }
         });
     }
 
@@ -276,6 +300,18 @@ public partial class App : System.Windows.Application
     {
         _settings = _settings with { ExpandedProviders = expanded };
         _settingsStore.Save(_settings);
+        // No redraw follows, but the settings page still learns whether the save failed.
+        SettingsChanged?.Invoke(_settings);
+    }
+
+    /// <summary>Raised when the Windows startup registration changes from any surface.</summary>
+    public event Action? StartupChanged;
+
+    /// <summary>Called by whichever surface changed the registration; the menu tick follows.</summary>
+    public void NotifyStartupChanged()
+    {
+        if (_startupItem is not null) _startupItem.Checked = StartupRegistration.IsEnabled();
+        StartupChanged?.Invoke();
     }
 
     public void ApplySettings(AppSettings next)
@@ -288,7 +324,12 @@ public partial class App : System.Windows.Application
         if (previous.Language != _settings.Language)
         {
             _strings = ResolveStrings(_arguments, _settings.Language);
-            if (_trayIcon is not null) _trayIcon.ContextMenuStrip = BuildMenu();
+            if (_trayIcon is not null)
+            {
+                var old = _trayIcon.ContextMenuStrip;
+                _trayIcon.ContextMenuStrip = BuildMenu();
+                old?.Dispose();
+            }
             _popup?.UpdateStrings(_strings);
         }
         if (previous.Theme != _settings.Theme)
@@ -324,6 +365,7 @@ public partial class App : System.Windows.Application
         _historyStore.Save(_history);
         _settingsStore.Save(_settings);
         if (_trayIcon is not null) _trayIcon.Visible = false;
+        _trayIcon?.ContextMenuStrip?.Dispose();
         _trayIcon?.Dispose();
         _currentIcon?.Dispose();
         _transport?.Dispose();

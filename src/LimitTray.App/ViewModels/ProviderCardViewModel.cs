@@ -22,14 +22,31 @@ public sealed class RelayCommand : ICommand
     public void Execute(object? parameter) => _run();
 }
 
+/// <summary>
+/// One provider's card. The instance lives as long as the provider is shown and is
+/// refreshed in place by <see cref="Refresh"/>, so a new reading changes numbers and
+/// colours without tearing the card down; a rebuilt card would reset its animations
+/// and flash.
+/// </summary>
 public sealed class ProviderCardViewModel : ObservableObject
 {
     private readonly App _app;
-    private readonly QuotaSnapshot _snapshot;
     private readonly UsageHistory _history;
-    private readonly Strings _strings;
-    private readonly AppSettings _settings;
-    private readonly DateTimeOffset _now;
+    private Strings _strings;
+
+    private string _title = string.Empty;
+    private double _ringPercent;
+    private string? _ringPercentText;
+    private System.Windows.Media.Brush _ringColour = System.Windows.Media.Brushes.Transparent;
+    private System.Windows.Media.Brush _ringTextBrush = System.Windows.Media.Brushes.Transparent;
+    private System.Windows.Media.Effects.Effect? _ringGlow;
+    private string _resetShortText = string.Empty;
+    private IReadOnlyList<WindowRowViewModel> _rows = Array.Empty<WindowRowViewModel>();
+    private bool _isDimmed;
+    private string? _staleBadgeText;
+    private string? _healthText;
+    private bool _hasData;
+    private string _lastUpdatedText = string.Empty;
     private bool _isExpanded;
     private string? _terminalError;
     private int _terminalErrorGeneration;
@@ -43,67 +60,33 @@ public sealed class ProviderCardViewModel : ObservableObject
         App app)
     {
         _app = app;
-        _snapshot = snapshot;
         _history = history;
         _strings = strings;
-        _settings = settings;
-        _now = now;
-
         Provider = snapshot.Provider;
-        Title = QuotaFormatter.ProviderTitle(snapshot.Provider, strings);
-        HasData = snapshot.Session is not null || snapshot.Weekly is not null;
-        IsStale = snapshot.Health == HealthState.Stale;
-        HealthText = HasData ? null : QuotaFormatter.HealthText(snapshot, strings);
-        StaleBadgeText = IsStale
-            ? string.Format(CultureInfo.InvariantCulture, strings.StaleBadge,
-                QuotaFormatter.Age(snapshot.FetchedAt, now, strings))
-            : null;
-        // "Updated just now" already carries its own verb; wrapping it in "Last updated ..."
-        // read as a stutter on screen.
-        var age = QuotaFormatter.Age(snapshot.FetchedAt, now, strings);
-        LastUpdatedText = age == strings.UpdatedNow
-            ? age
-            : string.Format(CultureInfo.InvariantCulture, strings.LastUpdated, age);
-
-        var windows = Windows(snapshot).ToList();
-        var fullest = windows.Count == 0
-            ? ((WindowKind Kind, QuotaWindow Window)?)null
-            : windows.MaxBy(pair => pair.Window.Percent);
-        RingPercent = fullest is null ? 0 : Math.Clamp(fullest.Value.Window.Percent, 0, 100);
-        RingPercentText = fullest is null ? null : QuotaFormatter.Percent(fullest.Value.Window.Percent, strings);
-        var ringRgb = fullest is null
-            ? Theme.ColourFor(snapshot.Provider, QuotaSeverity.Normal, snapshot.Health)
-            : Theme.ColourFor(
-                snapshot.Provider,
-                QuotaFormatter.SeverityFor(fullest.Value.Window.Percent, settings.Thresholds),
-                snapshot.Health);
-        RingColour = Brushes.Solid(ringRgb, Theme.OpacityFor(snapshot.Health));
-        RingTextBrush = Brushes.Solid(Brushes.Lighter(ringRgb), Theme.OpacityFor(snapshot.Health));
-        RingGlow = snapshot.Health == HealthState.Fresh ? Brushes.Glow(ringRgb, 0.45) : null;
-
-        ResetShortText = BuildResetShort(windows, now, strings);
-        Rows = windows.Select(pair => new WindowRowViewModel(
-            pair.Kind, pair.Window, snapshot, history, settings, strings, now)).ToList();
         _isExpanded = settings.ExpandedProviders.Contains(snapshot.Provider);
         OpenTerminalCommand = new RelayCommand(OpenTerminal);
+        Refresh(snapshot, settings, strings, now);
     }
 
     public string Provider { get; }
-    public string Title { get; }
-    public double RingPercent { get; }
-    public string? RingPercentText { get; }
-    public System.Windows.Media.Brush RingColour { get; }
-    public System.Windows.Media.Brush RingTextBrush { get; }
-    public System.Windows.Media.Effects.Effect? RingGlow { get; }
-    public string ResetShortText { get; }
-    public IReadOnlyList<WindowRowViewModel> Rows { get; }
-    public bool IsStale { get; }
-    public string? StaleBadgeText { get; }
-    public string? HealthText { get; }
-    public bool HasData { get; }
-    public string LastUpdatedText { get; }
+    public string Title { get => _title; private set => Set(ref _title, value); }
+    public double RingPercent { get => _ringPercent; private set => Set(ref _ringPercent, value); }
+    /// <summary>The fullest window's percentage, or the question mark when nothing is known.</summary>
+    public string? RingPercentText { get => _ringPercentText; private set => Set(ref _ringPercentText, value); }
+    public System.Windows.Media.Brush RingColour { get => _ringColour; private set => Set(ref _ringColour, value); }
+    public System.Windows.Media.Brush RingTextBrush { get => _ringTextBrush; private set => Set(ref _ringTextBrush, value); }
+    public System.Windows.Media.Effects.Effect? RingGlow { get => _ringGlow; private set => Set(ref _ringGlow, value); }
+    public string ResetShortText { get => _resetShortText; private set => Set(ref _resetShortText, value); }
+    public IReadOnlyList<WindowRowViewModel> Rows { get => _rows; private set => Set(ref _rows, value); }
+    /// <summary>Anything that is not a fresh reading is drawn dimmed.</summary>
+    public bool IsDimmed { get => _isDimmed; private set => Set(ref _isDimmed, value); }
+    public string? StaleBadgeText { get => _staleBadgeText; private set => Set(ref _staleBadgeText, value); }
+    /// <summary>The failure in words. Shown for every non-fresh state, with or without retained numbers.</summary>
+    public string? HealthText { get => _healthText; private set => Set(ref _healthText, value); }
+    public bool HasData { get => _hasData; private set => Set(ref _hasData, value); }
+    public string LastUpdatedText { get => _lastUpdatedText; private set => Set(ref _lastUpdatedText, value); }
     public string OpenTerminalText => _strings.OpenTerminal;
-    public string OpenTerminalGlyph => "⌁";
+    public string OpenTerminalGlyph => Glyphs.Terminal;
     public RelayCommand OpenTerminalCommand { get; }
 
     public string? TerminalError
@@ -124,6 +107,57 @@ public sealed class ProviderCardViewModel : ObservableObject
             else expanded.Remove(Provider);
             _app.RememberExpanded(expanded);
         }
+    }
+
+    /// <summary>Applies a new reading to the existing card.</summary>
+    public void Refresh(QuotaSnapshot snapshot, AppSettings settings, Strings strings, DateTimeOffset now)
+    {
+        _strings = strings;
+        var fresh = snapshot.Health == HealthState.Fresh;
+        var alpha = Theme.OpacityFor(snapshot.Health);
+
+        Title = QuotaFormatter.ProviderTitle(snapshot.Provider, strings);
+        HasData = snapshot.Session is not null || snapshot.Weekly is not null;
+        IsDimmed = !fresh;
+        HealthText = fresh ? null : QuotaFormatter.HealthText(snapshot, strings);
+        StaleBadgeText = snapshot.Health == HealthState.Stale
+            ? string.Format(CultureInfo.InvariantCulture, strings.StaleBadge,
+                QuotaFormatter.Age(snapshot.FetchedAt, now, strings))
+            : null;
+
+        // "Updated just now" already carries its own verb; wrapping it in "Last updated ..."
+        // read as a stutter on screen.
+        var age = QuotaFormatter.Age(snapshot.FetchedAt, now, strings);
+        LastUpdatedText = age == strings.UpdatedNow
+            ? age
+            : string.Format(CultureInfo.InvariantCulture, strings.LastUpdated, age);
+
+        var windows = Windows(snapshot).ToList();
+        var fullest = windows.Count == 0
+            ? ((WindowKind Kind, QuotaWindow Window)?)null
+            : windows.MaxBy(pair => pair.Window.Percent);
+
+        // An unknown value is the question mark, never an empty gauge that reads as 0%.
+        RingPercent = fullest is null ? 0 : Math.Clamp(fullest.Value.Window.Percent, 0, 100);
+        RingPercentText = fullest is null
+            ? Glyphs.Unknown
+            : QuotaFormatter.Percent(fullest.Value.Window.Percent, strings);
+
+        var ringRgb = fullest is null
+            ? Theme.ColourFor(snapshot.Provider, QuotaSeverity.Normal, snapshot.Health)
+            : Theme.ColourFor(
+                snapshot.Provider,
+                QuotaFormatter.SeverityFor(fullest.Value.Window.Percent, settings.Thresholds),
+                snapshot.Health);
+        RingColour = Brushes.Solid(ringRgb, alpha);
+        RingTextBrush = Brushes.Solid(Brushes.Lighter(ringRgb), alpha);
+        RingGlow = fresh ? Brushes.Glow(ringRgb, 0.45) : null;
+
+        ResetShortText = BuildResetShort(windows, now, strings);
+        Rows = windows.Select(pair => new WindowRowViewModel(
+            pair.Kind, pair.Window, snapshot, _history, settings, strings, now)).ToList();
+
+        RaisePropertyChanged(nameof(OpenTerminalText));
     }
 
     private void OpenTerminal()

@@ -97,16 +97,19 @@ public static class TrayIconRenderer
 
     private static void DrawDualBar(Graphics g, TrayIconModel m)
     {
-        DrawVerticalBar(g, m.Left, new Rectangle(4, 3, 10, Size - 6));
-        DrawVerticalBar(g, m.Right, new Rectangle(Size - 14, 3, 10, Size - 6));
-        if (m.Left is null && m.Right is null) DrawQuestionMark(g);
+        var left = new Rectangle(4, 3, 10, Size - 6);
+        var right = new Rectangle(Size - 14, 3, 10, Size - 6);
+        DrawVerticalBar(g, m.Left, left);
+        DrawVerticalBar(g, m.Right, right);
+        // A side with no value is a question mark in that half, never an empty track.
+        if (m.Left is null) DrawQuestionMark(g, left);
+        if (m.Right is null) DrawQuestionMark(g, right);
     }
 
     private static void DrawVerticalBar(Graphics g, TrayBar? bar, Rectangle track)
     {
         using var trackPath = RoundedRect(track, 3);
-        using var trackBrush = new SolidBrush(
-            bar is null ? Color.FromArgb(90, 255, 255, 255) : Color.FromArgb(70, 255, 255, 255));
+        using var trackBrush = new SolidBrush(Color.FromArgb(70, 255, 255, 255));
         g.FillPath(trackBrush, trackPath);
 
         if (bar is null) return;
@@ -119,20 +122,25 @@ public static class TrayIconRenderer
         g.FillPath(fillBrush, fillPath);
     }
 
-    private static void DrawQuestionMark(Graphics g)
+    private static void DrawQuestionMark(Graphics g) =>
+        DrawQuestionMark(g, new Rectangle(0, 0, Size, Size));
+
+    private static void DrawQuestionMark(Graphics g, Rectangle area)
     {
-        using var font = new Font("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Pixel);
+        var size = area.Width < Size ? 13f : 16f;
+        using var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
         using var brush = new SolidBrush(Color.FromArgb(230, 200, 200, 200));
         using var format = new StringFormat
         {
             Alignment = StringAlignment.Center,
             LineAlignment = StringAlignment.Center,
         };
-        g.DrawString("?", font, brush, new RectangleF(0, 0, Size, Size), format);
+        g.DrawString(Glyphs.Unknown, font, brush, area, format);
     }
 
+    // The unhealthy track takes the palette's warning colour; the renderer picks no hue.
     private static Color TrackColour(bool hasUnhealthy) =>
-        hasUnhealthy ? Color.FromArgb(150, 229, 72, 77) : Color.FromArgb(70, 255, 255, 255);
+        hasUnhealthy ? Brushes.ToDrawing(Palette.Warning, 150) : Color.FromArgb(70, 255, 255, 255);
 
     private static Color Contrast(Rgb c) =>
         (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 150

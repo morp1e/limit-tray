@@ -14,7 +14,8 @@ public sealed class PercentToArcConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        var percent = Math.Clamp(System.Convert.ToDouble(value, CultureInfo.InvariantCulture), 0, 100);
+        if (value is not double raw || double.IsNaN(raw)) return Geometry.Empty;
+        var percent = Math.Clamp(raw, 0, 100);
         if (percent <= 0) return Geometry.Empty;
 
         const double center = 26;
@@ -47,9 +48,12 @@ public sealed class PercentToWidthConverter : IMultiValueConverter
 {
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
-        if (values.Length < 2 || values[0] is not double width) return 0d;
-        var percent = System.Convert.ToDouble(values[1], CultureInfo.InvariantCulture);
-        return Math.Max(0, width) * Math.Clamp(percent, 0, 100) / 100;
+        // Either value is DependencyProperty.UnsetValue while a template is being torn
+        // down or rebound; converting that blindly threw on the UI thread.
+        if (values.Length < 2 || values[0] is not double width || values[1] is not double percent
+            || double.IsNaN(width) || double.IsNaN(percent))
+            return 0.0;
+        return Math.Clamp(percent, 0, 100) / 100.0 * Math.Max(0, width);
     }
 
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>

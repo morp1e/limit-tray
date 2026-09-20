@@ -104,7 +104,7 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="BorderBrush" Value="{DynamicResource CardHoverBorderBrush}" />
                             </Trigger>
-                            <DataTrigger Binding="{Binding IsStale}" Value="True">
+                            <DataTrigger Binding="{Binding IsDimmed}" Value="True">
                                 <Setter Property="Opacity" Value="0.55" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -162,9 +162,12 @@
                                 <Binding Path="HasData" Converter="{StaticResource BooleanVisibility}" />
                             </ItemsControl.Visibility>
                         </ItemsControl>
-                        <TextBlock Grid.Row="1" Text="{Binding HealthText}" Foreground="{Binding RingColour}"
-                                   Margin="0,8,0,4" Visibility="{Binding HealthText, Converter={StaticResource NullableVisibility}}" />
-                        <StackPanel Grid.Row="2" Margin="0,7,0,0"
+                        <!-- The failure in words, always: under the numbers when old ones are
+                             retained, in their place when there are none. -->
+                        <TextBlock Grid.Row="2" Text="{Binding HealthText}" Foreground="{DynamicResource TextBrush}"
+                                   FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding HealthText, Converter={StaticResource NullableVisibility}}" />
+                        <StackPanel Grid.Row="3" Margin="0,7,0,0"
                                     Visibility="{Binding IsExpanded, Converter={StaticResource BooleanVisibility}}">
                             <TextBlock Text="{Binding LastUpdatedText}" Foreground="{DynamicResource MutedTextBrush}"
                                        FontSize="11" />
