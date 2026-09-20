@@ -50,7 +50,7 @@ public partial class App : System.Windows.Application
         _strings = ResolveStrings(e.Args, _settings.Language);
         _alerts.UpdateThresholds(_settings.Thresholds);
         _history = _historyStore.Load();
-        _popup = new QuotaPopup(_strings, _history);
+        _popup = new QuotaPopup(this, _strings, _history);
 
         _currentIcon = TrayIconRenderer.Render(
             TrayIconModelBuilder.Build(Array.Empty<QuotaSnapshot>(), _settings));

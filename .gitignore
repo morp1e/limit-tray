@@ -17,3 +17,6 @@ obj/
 
 # Brainstorm mockups from the visual companion, not part of the product
 .superpowers/
+
+# Local DPI-aware verification captures, never part of a commit
+docs/verify/

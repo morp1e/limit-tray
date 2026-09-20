@@ -3,18 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Lim'it" Width="360" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
-        Topmost="True" Background="#111318" BorderBrush="#303640" BorderThickness="1"
-        FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        Deactivated="OnDeactivated">
-    <!--
-        The panels stretch; the individual lines are pinned to QuotaPopup.ContentWidth
-        in code and wrap. A StackPanel takes its layout width from its widest child, so
-        an unwrapped line long enough to exceed the window would push anything
-        right-aligned in a neighbouring row off the visible area.
-    -->
-    <StackPanel Margin="16">
-        <StackPanel x:Name="ProvidersPanel" />
-        <TextBlock x:Name="FooterText" Foreground="#9AA3B2" FontSize="11" Margin="2,2,2,0"
-                   TextWrapping="Wrap" />
-    </StackPanel>
+        Topmost="True" Background="Transparent"
+        FontFamily="{DynamicResource AppFont}" UseLayoutRounding="True"
+        SnapsToDevicePixels="True" Deactivated="OnDeactivated">
+    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+            BorderThickness="1" CornerRadius="12">
+        <Grid ClipToBounds="True">
+            <ContentPresenter x:Name="PanelHost" />
+            <ContentPresenter x:Name="SettingsHost" Visibility="Collapsed"
+                              RenderTransformOrigin="0.5,0.5" />
+        </Grid>
+    </Border>
 </Window>
