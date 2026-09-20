@@ -48,6 +48,42 @@ public sealed class Strings
         ResetsBeforeFull = "resets before it fills",
         WarningNotificationTitle = "Lim'it - running low",
         WarningNotificationBody = "{0}, {1}: {2}",
+        Refresh = "Refresh",
+        Settings = "Settings",
+        BackToPanel = "Back to panel",
+        OpenTerminal = "Open in terminal",
+        TerminalFailed = "Could not open a terminal",
+        StaleBadge = "STALE · {0}",
+        LastUpdated = "Last updated {0}",
+        GroupAppearance = "Appearance",
+        GroupData = "Data",
+        GroupTray = "Tray icon",
+        GroupSystem = "System",
+        Theme = "Theme",
+        ThemeSystem = "System",
+        ThemeDark = "Dark",
+        ThemeLight = "Light",
+        Language = "Language",
+        LanguageSystem = "System",
+        GlassEffect = "Glass effect",
+        RefreshInterval = "Refresh interval",
+        Seconds = "{0} s",
+        Minutes = "{0} min",
+        CautionThreshold = "Caution threshold",
+        WarningThreshold = "Warning threshold",
+        Notifications = "Notifications",
+        TrayStyle = "Icon style",
+        TrayStyleRing = "Ring",
+        TrayStyleNumber = "Number",
+        TrayStyleDualBar = "Two bars",
+        TraySource = "Icon source",
+        TraySourceHighest = "Fullest window",
+        TraySourceClaudeSession = "Claude 5h",
+        TraySourceClaudeWeekly = "Claude 7d",
+        TraySourceCodexSession = "Codex 5h",
+        TraySourceCodexWeekly = "Codex 7d",
+        SettingsSaveFailed = "Settings could not be saved",
+        ResetShort = "↺ {0}",
     };
 
     public static readonly Strings Turkish = new()
@@ -84,6 +120,42 @@ public sealed class Strings
         ResetsBeforeFull = "dolmadan sıfırlanır",
         WarningNotificationTitle = "Lim'it - azalıyor",
         WarningNotificationBody = "{0}, {1}: {2}",
+        Refresh = "Yenile",
+        Settings = "Ayarlar",
+        BackToPanel = "Panele dön",
+        OpenTerminal = "Terminalde aç",
+        TerminalFailed = "Terminal açılamadı",
+        StaleBadge = "ESKİ · {0}",
+        LastUpdated = "Son güncelleme {0}",
+        GroupAppearance = "Görünüm",
+        GroupData = "Veri",
+        GroupTray = "Tray ikonu",
+        GroupSystem = "Sistem",
+        Theme = "Tema",
+        ThemeSystem = "Sistem",
+        ThemeDark = "Koyu",
+        ThemeLight = "Açık",
+        Language = "Dil",
+        LanguageSystem = "Sistem",
+        GlassEffect = "Cam efekti",
+        RefreshInterval = "Yenileme aralığı",
+        Seconds = "{0} sn",
+        Minutes = "{0} dk",
+        CautionThreshold = "Dikkat eşiği",
+        WarningThreshold = "Uyarı eşiği",
+        Notifications = "Bildirim",
+        TrayStyle = "İkon stili",
+        TrayStyleRing = "Halka",
+        TrayStyleNumber = "Sayı",
+        TrayStyleDualBar = "İki bar",
+        TraySource = "İkon kaynağı",
+        TraySourceHighest = "En dolu pencere",
+        TraySourceClaudeSession = "Claude 5s",
+        TraySourceClaudeWeekly = "Claude 7g",
+        TraySourceCodexSession = "Codex 5s",
+        TraySourceCodexWeekly = "Codex 7g",
+        SettingsSaveFailed = "Ayarlar kaydedilemedi",
+        ResetShort = "↺ {0}",
     };
 
     public required string Exit { get; init; }
@@ -129,6 +201,43 @@ public sealed class Strings
 
     /// <summary>Provider title, window subtitle, percentage.</summary>
     public required string WarningNotificationBody { get; init; }
+
+    public required string Refresh { get; init; }
+    public required string Settings { get; init; }
+    public required string BackToPanel { get; init; }
+    public required string OpenTerminal { get; init; }
+    public required string TerminalFailed { get; init; }
+    public required string StaleBadge { get; init; }
+    public required string LastUpdated { get; init; }
+    public required string GroupAppearance { get; init; }
+    public required string GroupData { get; init; }
+    public required string GroupTray { get; init; }
+    public required string GroupSystem { get; init; }
+    public required string Theme { get; init; }
+    public required string ThemeSystem { get; init; }
+    public required string ThemeDark { get; init; }
+    public required string ThemeLight { get; init; }
+    public required string Language { get; init; }
+    public required string LanguageSystem { get; init; }
+    public required string GlassEffect { get; init; }
+    public required string RefreshInterval { get; init; }
+    public required string Seconds { get; init; }
+    public required string Minutes { get; init; }
+    public required string CautionThreshold { get; init; }
+    public required string WarningThreshold { get; init; }
+    public required string Notifications { get; init; }
+    public required string TrayStyle { get; init; }
+    public required string TrayStyleRing { get; init; }
+    public required string TrayStyleNumber { get; init; }
+    public required string TrayStyleDualBar { get; init; }
+    public required string TraySource { get; init; }
+    public required string TraySourceHighest { get; init; }
+    public required string TraySourceClaudeSession { get; init; }
+    public required string TraySourceClaudeWeekly { get; init; }
+    public required string TraySourceCodexSession { get; init; }
+    public required string TraySourceCodexWeekly { get; init; }
+    public required string SettingsSaveFailed { get; init; }
+    public required string ResetShort { get; init; }
 
     public static Strings ForCulture(CultureInfo culture) =>
         culture.TwoLetterISOLanguageName.Equals("tr", StringComparison.OrdinalIgnoreCase)
