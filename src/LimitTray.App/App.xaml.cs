@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,7 +28,10 @@ public partial class App : System.Windows.Application
     private readonly QuotaStore _store = new(() => DateTimeOffset.Now);
     private readonly QuotaAlerts _alerts = new();
     private readonly HistoryStore _historyStore = HistoryStore.ForDefaultPath();
+    private readonly SettingsStore _settingsStore = SettingsStore.ForDefaultPath();
     private AppSettings _settings = AppSettings.Default;
+    private readonly List<IQuotaCollector> _collectors = new();
+    private DateTimeOffset _lastManualRefresh = DateTimeOffset.MinValue;
 
     private UsageHistory _history = new();
     private NotifyIcon? _trayIcon;
@@ -42,7 +46,9 @@ public partial class App : System.Windows.Application
     private void OnStartup(object sender, StartupEventArgs e)
     {
         _arguments = e.Args;
-        _strings = LanguageArguments.Resolve(e.Args, CultureInfo.CurrentUICulture);
+        _settings = _settingsStore.Load();
+        _strings = ResolveStrings(e.Args, _settings.Language);
+        _alerts.UpdateThresholds(_settings.Thresholds);
         _history = _historyStore.Load();
         _popup = new QuotaPopup(_strings, _history);
 
@@ -109,6 +115,20 @@ public partial class App : System.Windows.Application
         return menu;
     }
 
+    private static Strings ResolveStrings(IReadOnlyList<string> args, LanguageMode mode)
+    {
+        // The command line still wins, as it did in v0.2; the setting is the default under it.
+        var fromArgs = LanguageArguments.Resolve(args, CultureInfo.CurrentUICulture);
+        var explicitArg = args.Any(a => a.StartsWith("--lang", StringComparison.OrdinalIgnoreCase));
+        if (explicitArg) return fromArgs;
+        return mode switch
+        {
+            LanguageMode.Turkish => Strings.Turkish,
+            LanguageMode.English => Strings.English,
+            _ => Strings.ForCulture(CultureInfo.CurrentUICulture),
+        };
+    }
+
     private void ToggleStartup()
     {
         if (_startupItem is null) return;
@@ -146,19 +166,24 @@ public partial class App : System.Windows.Application
         });
     }
 
-    private void Notify(QuotaAlert alert) =>
+    private void Notify(QuotaAlert alert)
+    {
+        if (!_settings.Notifications) return;
+
         _trayIcon?.ShowBalloonTip(
             10_000,
             _strings.WarningNotificationTitle,
             QuotaAlerts.Body(alert, _strings),
             ToolTipIcon.Warning);
+    }
 
-    private static IQuotaCollector BuildClaudeCollector(IHttpTransport transport) =>
+    private IQuotaCollector BuildClaudeCollector(IHttpTransport transport) =>
         new ClaudeCollector(
             transport,
             ClaudeCredentialReader.FromDefaultPath(),
             () => DateTimeOffset.Now,
-            Task.Delay);
+            Task.Delay,
+            () => TimeSpan.FromSeconds(_settings.RefreshSeconds));
 
     private static IQuotaCollector BuildCodexCollector()
     {
@@ -174,7 +199,9 @@ public partial class App : System.Windows.Application
                 CodexRolloutReader.DefaultSessionsRoot, DateTimeOffset.Now));
     }
 
-    private void StartCollector(IQuotaCollector collector) =>
+    private void StartCollector(IQuotaCollector collector)
+    {
+        _collectors.Add(collector);
         _ = Task.Run(async () =>
         {
             try
@@ -184,6 +211,7 @@ public partial class App : System.Windows.Application
             }
             catch (OperationCanceledException) { }
         });
+    }
 
     private void TogglePopup()
     {
@@ -212,11 +240,48 @@ public partial class App : System.Windows.Application
             _popup.Show(snapshots, DateTimeOffset.Now);
     }
 
+    public AppSettings Settings => _settings;
+
+    public SettingsStore SettingsStore => _settingsStore;
+
+    public event Action<AppSettings>? SettingsChanged;
+
+    public void ApplySettings(AppSettings next)
+    {
+        var previous = _settings;
+        _settings = next.Normalised();
+        _settingsStore.Save(_settings);
+
+        if (previous.Thresholds != _settings.Thresholds) _alerts.UpdateThresholds(_settings.Thresholds);
+        if (previous.Language != _settings.Language)
+        {
+            _strings = ResolveStrings(_arguments, _settings.Language);
+            _trayIcon!.ContextMenuStrip = BuildMenu();
+        }
+        // The interval delegate reads _settings on the next tick; a shorter interval takes
+        // effect immediately by cutting the current wait short.
+        if (previous.RefreshSeconds > _settings.RefreshSeconds)
+            foreach (var collector in _collectors) collector.RequestRefresh();
+
+        UpdateTray();
+        SettingsChanged?.Invoke(_settings);
+    }
+
+    /// <summary>Manual refresh, rate limited to one per five seconds: the endpoint is shared.</summary>
+    public void RefreshNow()
+    {
+        var now = DateTimeOffset.Now;
+        if (now - _lastManualRefresh < TimeSpan.FromSeconds(5)) return;
+        _lastManualRefresh = now;
+        foreach (var collector in _collectors) collector.RequestRefresh();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _cts.Cancel();
         _housekeepingTimer?.Stop();
         _historyStore.Save(_history);
+        _settingsStore.Save(_settings);
         if (_trayIcon is not null) _trayIcon.Visible = false;
         _trayIcon?.Dispose();
         _currentIcon?.Dispose();
