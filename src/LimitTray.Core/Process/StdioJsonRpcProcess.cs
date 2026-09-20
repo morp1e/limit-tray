@@ -22,6 +22,10 @@ public sealed class StdioJsonRpcProcess : IJsonRpcProcess
     private readonly string _arguments;
     private System.Diagnostics.Process? _process;
 
+    // StreamWriter does not support overlapping writes. The periodic read, a manual
+    // refresh and the handshake can all send at once, so every write goes through here.
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
+
     public StdioJsonRpcProcess(string fileName, string arguments)
     {
         _fileName = fileName;
@@ -44,6 +48,12 @@ public sealed class StdioJsonRpcProcess : IJsonRpcProcess
         _process = System.Diagnostics.Process.Start(info)
             ?? throw new InvalidOperationException("codex app-server baslatilamadi");
 
+        // Drained and discarded. Measured 2026-09-03: app-server writes nothing to
+        // stderr in normal operation, but an undrained pipe would block the child the
+        // day it starts to, and the symptom would be quota that silently stops moving.
+        _process.ErrorDataReceived += (_, _) => { };
+        _process.BeginErrorReadLine();
+
         return Task.CompletedTask;
     }
 
@@ -51,9 +61,17 @@ public sealed class StdioJsonRpcProcess : IJsonRpcProcess
     {
         var process = _process
             ?? throw new InvalidOperationException("Surec baslatilmadi");
-        await process.StandardInput.WriteLineAsync(jsonLine.AsMemory(), ct)
-            .ConfigureAwait(false);
-        await process.StandardInput.FlushAsync(ct).ConfigureAwait(false);
+        await _writeGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await process.StandardInput.WriteLineAsync(jsonLine.AsMemory(), ct)
+                .ConfigureAwait(false);
+            await process.StandardInput.FlushAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     public async IAsyncEnumerable<string> ReadLines(

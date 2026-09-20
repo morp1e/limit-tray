@@ -49,7 +49,7 @@ public static class SettingsFile
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
             if (!root.TryGetProperty("version", out var v) || v.ValueKind != JsonValueKind.Number
-                || v.GetInt32() != Version) return null;
+                || !v.TryGetInt32(out var version) || version != Version) return null;
 
             var d = AppSettings.Default;
             var expanded = new HashSet<string>(StringComparer.Ordinal);

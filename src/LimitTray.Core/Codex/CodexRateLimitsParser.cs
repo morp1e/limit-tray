@@ -20,12 +20,19 @@ public static class CodexRateLimitsParser
         }
         catch (JsonException ex)
         {
+            // Type name only: the message can quote the malformed body.
             return QuotaSnapshot.Unhealthy(
-                Provider, HealthState.ProtocolBroken, now, "Yanit JSON degil: " + ex.Message);
+                Provider, HealthState.ProtocolBroken, now, "Yanit JSON degil: " + ex.GetType().Name);
         }
 
         using (doc)
         {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return QuotaSnapshot.Unhealthy(
+                    Provider, HealthState.ProtocolBroken, now, "Yanit bir nesne degil");
+            }
+
             if (!TryFindRateLimits(doc.RootElement, out var limits))
             {
                 return QuotaSnapshot.Unhealthy(
@@ -43,6 +50,12 @@ public static class CodexRateLimitsParser
                 return QuotaSnapshot.Unhealthy(
                     Provider, HealthState.ProtocolBroken, now,
                     "rateLimits icinde pencere yok");
+            }
+
+            if (!QuotaWindowRange.IsValid(session) || !QuotaWindowRange.IsValid(weekly))
+            {
+                return QuotaSnapshot.Unhealthy(
+                    Provider, HealthState.ProtocolBroken, now, "Yuzde 0-100 araliginda degil");
             }
 
             return new QuotaSnapshot(Provider, session, weekly, HealthState.Fresh, now, null);

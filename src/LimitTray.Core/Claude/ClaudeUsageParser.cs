@@ -19,13 +19,20 @@ public static class ClaudeUsageParser
         }
         catch (JsonException ex)
         {
+            // Type name only: the message can quote the malformed body.
             return QuotaSnapshot.Unhealthy(
-                Provider, HealthState.ProtocolBroken, now, "Yanit JSON degil: " + ex.Message);
+                Provider, HealthState.ProtocolBroken, now, "Yanit JSON degil: " + ex.GetType().Name);
         }
 
         using (doc)
         {
             var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return QuotaSnapshot.Unhealthy(
+                    Provider, HealthState.ProtocolBroken, now, "Yanit bir nesne degil");
+            }
+
             var session = ReadWindow(root, "five_hour", FiveHours);
             var weekly = ReadWindow(root, "seven_day", SevenDays);
 
@@ -35,6 +42,12 @@ public static class ClaudeUsageParser
                 return QuotaSnapshot.Unhealthy(
                     Provider, HealthState.ProtocolBroken, now,
                     "Yanitta five_hour alani yok");
+            }
+
+            if (!QuotaWindowRange.IsValid(session) || !QuotaWindowRange.IsValid(weekly))
+            {
+                return QuotaSnapshot.Unhealthy(
+                    Provider, HealthState.ProtocolBroken, now, "Yuzde 0-100 araliginda degil");
             }
 
             return new QuotaSnapshot(Provider, session, weekly, HealthState.Fresh, now, null);

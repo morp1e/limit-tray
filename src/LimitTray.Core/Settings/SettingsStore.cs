@@ -47,7 +47,12 @@ public sealed class SettingsStore
     public void Save(AppSettings settings)
     {
         var content = SettingsFile.Write(settings);
-        if (string.Equals(content, _lastWritten, StringComparison.Ordinal)) return;
+        if (string.Equals(content, _lastWritten, StringComparison.Ordinal))
+        {
+            // Back at the value that is on disk: nothing is lost any more.
+            LastSaveFailed = false;
+            return;
+        }
 
         try
         {

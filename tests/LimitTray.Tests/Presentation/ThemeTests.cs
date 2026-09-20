@@ -34,8 +34,8 @@ public class ThemeTests
     [Theory]
     [InlineData(59.9, QuotaSeverity.Normal)]
     [InlineData(60, QuotaSeverity.Caution)]
-    [InlineData(85, QuotaSeverity.Caution)]
-    [InlineData(85.1, QuotaSeverity.Warning)]
+    [InlineData(84.9, QuotaSeverity.Caution)]
+    [InlineData(85, QuotaSeverity.Warning)]
     public void SeverityFor_DefaultThresholdsUnchanged(double percent, QuotaSeverity expected) =>
         Assert.Equal(expected, QuotaFormatter.SeverityFor(percent));
 

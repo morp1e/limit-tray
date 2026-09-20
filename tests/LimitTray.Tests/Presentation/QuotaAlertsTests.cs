@@ -24,7 +24,7 @@ public class QuotaAlertsTests
 
         Assert.Empty(alerts.Inspect(Snapshot(10)));
         Assert.Empty(alerts.Inspect(Snapshot(84)));
-        Assert.Empty(alerts.Inspect(Snapshot(85)));
+        Assert.Empty(alerts.Inspect(Snapshot(84.9)));
     }
 
     [Fact]

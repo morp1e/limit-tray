@@ -12,24 +12,30 @@ public sealed class CodexCollector : IQuotaCollector
     private const int MaxStartAttempts = 3;
     private static readonly TimeSpan FirstRestartDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan MaxRestartDelay = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DefaultRefreshInterval = TimeSpan.FromSeconds(60);
+    /// <summary>How long the initialize handshake may take before the session counts as failed.</summary>
+    private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(20);
 
     private readonly Func<IJsonRpcProcess> _processFactory;
     private readonly Func<DateTimeOffset> _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly Func<QuotaSnapshot?> _readFallback;
+    private readonly Func<TimeSpan> _interval;
     private volatile IJsonRpcProcess? _active;
+    private QuotaSnapshot? _lastFresh;
 
     public CodexCollector(
         Func<IJsonRpcProcess> processFactory,
         Func<DateTimeOffset> clock,
         Func<TimeSpan, CancellationToken, Task> delay,
-        Func<QuotaSnapshot?> readFallback)
+        Func<QuotaSnapshot?> readFallback,
+        Func<TimeSpan>? interval = null)
     {
         _processFactory = processFactory;
         _clock = clock;
         _delay = delay;
         _readFallback = readFallback;
+        _interval = interval ?? (() => DefaultRefreshInterval);
     }
 
     public string Provider => CodexRateLimitsParser.Provider;
@@ -114,13 +120,20 @@ public sealed class CodexCollector : IQuotaCollector
     }
 
     /// <summary>Returns true if the process started and writes snapshots to the writer.</summary>
+    /// <summary>
+    /// Returns true only when the handshake completed: a process that could not be
+    /// created, could not start, exited before answering initialize, or never answered
+    /// within the timeout is a failed start, and three of those reach the fallback.
+    /// </summary>
     private async Task<bool> RunSession(
         ChannelWriter<QuotaSnapshot> writer, CancellationToken ct)
     {
-        using var process = _processFactory();
-
+        IJsonRpcProcess process;
         try
         {
+            // The factory itself can throw (codex.exe not found). That used to escape the
+            // loop and stop Codex collection for the life of the process.
+            process = _processFactory();
             await process.StartAsync(ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
@@ -129,48 +142,82 @@ public sealed class CodexCollector : IQuotaCollector
             return false;
         }
 
-        using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        Task? refreshLoop = null;
-
-        try
+        using (process)
         {
-            await process.SendAsync(InitializeMessage, ct).ConfigureAwait(false);
-
+            using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            handshakeCts.CancelAfter(HandshakeTimeout);
+            Task? refreshLoop = null;
             var initialized = false;
 
-            await foreach (var line in process.ReadLines(ct).ConfigureAwait(false))
+            try
             {
-                if (!initialized && IsInitializeResponse(line))
+                await process.SendAsync(InitializeMessage, ct).ConfigureAwait(false);
+
+                // Lines are read with the handshake token until initialize is answered, so
+                // a process that stays alive but silent does not hang the session forever.
+                await foreach (var line in process.ReadLines(handshakeCts.Token).ConfigureAwait(false))
                 {
+                    if (!IsInitializeResponse(line)) continue;
                     initialized = true;
+                    break;
+                }
+
+                if (initialized)
+                {
                     _active = process;
                     await process.SendAsync(InitializedNotification, ct).ConfigureAwait(false);
                     await process.SendAsync(ReadMessage, ct).ConfigureAwait(false);
                     refreshLoop = Task.Run(
                         () => RefreshRead(process, refreshCts.Token),
                         CancellationToken.None);
-                    continue;
+
+                    await foreach (var line in process.ReadLines(ct).ConfigureAwait(false))
+                    {
+                        if (!CarriesRateLimits(line)) continue;
+
+                        var parsed = CodexRateLimitsParser.ParseAppServer(line, _clock());
+                        await writer.WriteAsync(Merge(parsed), ct).ConfigureAwait(false);
+                    }
                 }
-
-                if (!CarriesRateLimits(line)) continue;
-
-                await writer.WriteAsync(
-                    CodexRateLimitsParser.ParseAppServer(line, _clock()), ct)
-                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (OperationCanceledException) { /* handshake timeout: a failed start */ }
+            catch (Exception) { /* the process died; the loop restarts it */ }
+            finally
+            {
+                _active = null;
+                refreshCts.Cancel();
+                if (refreshLoop is not null)
+                {
+                    // A faulted refresh loop (stdin closed under a write) must not escape
+                    // here; the session is over either way and the loop decides what next.
+                    try { await refreshLoop.ConfigureAwait(false); }
+                    catch (Exception) { }
+                }
             }
 
+            return initialized;
         }
-        catch (OperationCanceledException) { }
-        catch (Exception) { /* surec olduse yeniden baslatilir */ }
-        finally
-        {
-            _active = null;
-            refreshCts.Cancel();
-            if (refreshLoop is not null)
-                await refreshLoop.ConfigureAwait(false);
-        }
+    }
 
-        return true;
+    /// <summary>
+    /// account/rateLimits/updated can carry only the window that changed. A partial
+    /// notification must not erase the other window we already know; a fresh reading
+    /// of one window is combined with the last fresh reading of the other.
+    /// </summary>
+    private QuotaSnapshot Merge(QuotaSnapshot parsed)
+    {
+        if (parsed.Health != HealthState.Fresh) return parsed;
+
+        var previous = _lastFresh;
+        var merged = parsed with
+        {
+            Session = parsed.Session ?? previous?.Session,
+            Weekly = parsed.Weekly ?? previous?.Weekly,
+        };
+        _lastFresh = merged;
+        return merged;
     }
 
     private async Task RefreshRead(IJsonRpcProcess process, CancellationToken ct)
@@ -179,7 +226,7 @@ public sealed class CodexCollector : IQuotaCollector
         {
             while (!ct.IsCancellationRequested)
             {
-                await _delay(RefreshInterval, ct).ConfigureAwait(false);
+                await _delay(_interval(), ct).ConfigureAwait(false);
                 await process.SendAsync(ReadMessage, ct).ConfigureAwait(false);
             }
         }

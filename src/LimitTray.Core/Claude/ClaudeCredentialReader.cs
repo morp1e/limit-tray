@@ -26,14 +26,33 @@ public sealed class ClaudeCredentialReader
         if (!File.Exists(path)) return null;
         try
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("claudeAiOauth", out var oauth)) return null;
-            if (!oauth.TryGetProperty("accessToken", out var token)) return null;
+            return FromJson(File.ReadAllText(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The token inside the credentials document, or null for any shape that is not
+    /// an object holding claudeAiOauth.accessToken as a string. A changed file shape
+    /// means "no token", never an exception: the collector must keep running.
+    /// </summary>
+    public static string? FromJson(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            if (!doc.RootElement.TryGetProperty("claudeAiOauth", out var oauth)
+                || oauth.ValueKind != JsonValueKind.Object) return null;
+            if (!oauth.TryGetProperty("accessToken", out var token)
+                || token.ValueKind != JsonValueKind.String) return null;
             var value = token.GetString();
             return string.IsNullOrWhiteSpace(value) ? null : value;
         }
-        catch (Exception ex) when (ex is JsonException or IOException
-                                      or UnauthorizedAccessException)
+        catch (JsonException)
         {
             return null;
         }

@@ -70,6 +70,8 @@ public class SettingsFileTests
             "cautionPercent", "warningPercent", "notifications", "trayStyle", "traySource",
             "expandedProviders",
         };
-        Assert.Subset(allowed, keys);
+        // keys must be inside allowed; Assert.Subset reads the other way round and let
+        // an extra key through. Spelled out so the direction cannot be misread again.
+        Assert.True(keys.IsSubsetOf(allowed), "unexpected keys: " + string.Join(",", keys.Except(allowed)));
     }
 }

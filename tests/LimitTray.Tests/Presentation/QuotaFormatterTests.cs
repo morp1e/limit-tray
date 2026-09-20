@@ -17,8 +17,8 @@ public class QuotaFormatterTests
     [InlineData(0.0, QuotaSeverity.Normal)]
     [InlineData(59.9, QuotaSeverity.Normal)]
     [InlineData(60.0, QuotaSeverity.Caution)]
-    [InlineData(85.0, QuotaSeverity.Caution)]
-    [InlineData(85.1, QuotaSeverity.Warning)]
+    [InlineData(84.9, QuotaSeverity.Caution)]
+    [InlineData(85.0, QuotaSeverity.Warning)]
     [InlineData(100.0, QuotaSeverity.Warning)]
     public void SeverityFor_UsesFixedThresholds(double percent, QuotaSeverity expected) =>
         Assert.Equal(expected, QuotaFormatter.SeverityFor(percent));

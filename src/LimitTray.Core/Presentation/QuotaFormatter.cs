@@ -19,7 +19,7 @@ public static class QuotaFormatter
 
     public static QuotaSeverity SeverityFor(double percent, QuotaThresholds thresholds) => percent switch
     {
-        var p when p > thresholds.Warning => QuotaSeverity.Warning,
+        var p when p >= thresholds.Warning => QuotaSeverity.Warning,
         var p when p >= thresholds.Caution => QuotaSeverity.Caution,
         _ => QuotaSeverity.Normal,
     };
@@ -165,7 +165,11 @@ public static class QuotaFormatter
 
             var session = snapshot.Session is null ? "?" : Percent(snapshot.Session.Percent, strings);
             var weekly = snapshot.Weekly is null ? "?" : Percent(snapshot.Weekly.Percent, strings);
-            parts.Add($"{name} {session} / {weekly}");
+            var line = $"{name} {session} / {weekly}";
+            // Retained numbers next to a failure still need the failure said in words.
+            if (snapshot.Health is not (HealthState.Fresh or HealthState.Stale))
+                line += " (" + HealthText(snapshot, strings) + ")";
+            parts.Add(line);
         }
 
         return string.Join("  ·  ", parts);
