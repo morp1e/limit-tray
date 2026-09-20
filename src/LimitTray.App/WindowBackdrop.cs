@@ -9,10 +9,9 @@ namespace LimitTray.App;
 /// Acrylic behind a frameless WPF window, plus the two DWM attributes that make such a
 /// window look native on Windows 11: rounded corners and no border line.
 ///
-/// The Windows 11 "system backdrop" attribute was tried first and does not compose
-/// reliably with a WPF window (it needs the frame extended into the client area, which
-/// paints a light border and squares the corners). The composition attribute below is
-/// the older, undocumented but widely used route and works from Windows 10 1803 on.
+/// On Windows 11 22H2+ the documented system backdrop is used, with the frame extended
+/// into the client area and its side effects (light border, square corners) turned off
+/// through DWM attributes. Windows 10 falls back to the older composition attribute.
 /// Every failure is silent: the effect is decoration and never worth an error.
 /// </summary>
 public static class WindowBackdrop
@@ -22,6 +21,9 @@ public static class WindowBackdrop
     private const int AccentEnableAcrylicBlurBehind = 4;
 
     private const int DwmwaUseImmersiveDarkMode = 20;
+    private const int DwmwaSystemBackdropType = 38;
+    private const int BackdropNone = 1;
+    private const int BackdropTransient = 3; // acrylic
     private const int DwmwaWindowCornerPreference = 33;
     private const int DwmwaBorderColor = 34;
     private const int DwmwcpRound = 2;
@@ -52,6 +54,15 @@ public static class WindowBackdrop
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref uint value, int size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Margins { public int Left, Right, Top, Bottom; }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Margins margins);
+
+    /// <summary>Windows 11 22H2 introduced the system backdrop attribute.</summary>
+    public static bool HasSystemBackdrop => Environment.OSVersion.Version.Build >= 22621;
 
     public static bool IsWindows11 => Environment.OSVersion.Version.Build >= 22000;
 
@@ -92,6 +103,19 @@ public static class WindowBackdrop
             if (source is null) return false;
             source.CompositionTarget.BackgroundColor = System.Windows.Media.Colors.Transparent;
 
+            // Windows 11 22H2+: the documented backdrop. It needs the DWM frame extended
+            // over the whole client area so the backdrop has somewhere to draw; the light
+            // border line and square corners that come with that are switched off in
+            // ApplyNativeShape. Measured 2026-09-20: the composition-attribute route below
+            // no longer blurs on build 26200, so it is only the fallback for Windows 10.
+            if (HasSystemBackdrop)
+            {
+                var margins = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+                if (DwmExtendFrameIntoClientArea(hwnd, ref margins) != 0) return false;
+                var backdrop = BackdropTransient;
+                return DwmSetWindowAttribute(hwnd, DwmwaSystemBackdropType, ref backdrop, sizeof(int)) == 0;
+            }
+
             var accent = new AccentPolicy
             {
                 AccentState = AccentEnableAcrylicBlurBehind,
@@ -112,6 +136,13 @@ public static class WindowBackdrop
         if (hwnd == IntPtr.Zero) return;
         try
         {
+            if (HasSystemBackdrop)
+            {
+                var none = BackdropNone;
+                DwmSetWindowAttribute(hwnd, DwmwaSystemBackdropType, ref none, sizeof(int));
+                var margins = new Margins();
+                DwmExtendFrameIntoClientArea(hwnd, ref margins);
+            }
             SetAccent(hwnd, new AccentPolicy { AccentState = AccentDisabled });
         }
         catch (Exception)

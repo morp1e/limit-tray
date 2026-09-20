@@ -91,13 +91,83 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Track" Property="Background"
-                                        Value="{DynamicResource CardHoverBorderBrush}" />
+                                        Value="{DynamicResource AccentBrush}" />
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Thumb" Property="Fill" Value="White" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource TextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- The stock ComboBox is a white Win32 control; this keeps it a dark pill like
+             the segments, with a dark popup list. -->
+        <Style x:Key="PillComboItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Row" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource CardHoverBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource CardHoverBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PillComboStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="92" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource PillComboItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Pill" Background="{DynamicResource TrackBrush}" CornerRadius="6" Height="26">
+                                            <Path Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource MutedTextBrush}" StrokeThickness="1.5"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource CardHoverBorderBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <!-- DisplayMemberPath does not reach a custom template's selection box,
+                                 so the label is bound directly; every option list here is a Choice. -->
+                            <TextBlock Text="{Binding SelectionBoxItem.Label, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="10,0,24,0" VerticalAlignment="Center" IsHitTestVisible="False" />
+                            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" StaysOpen="False" PopupAnimation="Fade">
+                                <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                        BorderThickness="1" CornerRadius="8" Padding="4" Margin="0,4,0,0"
+                                        MinWidth="{TemplateBinding ActualWidth}">
+                                    <StackPanel IsItemsHost="True" />
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -192,19 +262,19 @@
             <Grid Style="{StaticResource SettingRowStyle}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding RefreshIntervalText}" Style="{StaticResource SettingLabelStyle}" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding RefreshOptions}" DisplayMemberPath="Label"
+                <ComboBox Grid.Column="1" Style="{StaticResource PillComboStyle}" ItemsSource="{Binding RefreshOptions}" DisplayMemberPath="Label"
                           SelectedValuePath="Value" SelectedValue="{Binding RefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </Grid>
             <Grid Style="{StaticResource SettingRowStyle}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding CautionThresholdText}" Style="{StaticResource SettingLabelStyle}" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding CautionOptions}" DisplayMemberPath="Label"
+                <ComboBox Grid.Column="1" Style="{StaticResource PillComboStyle}" ItemsSource="{Binding CautionOptions}" DisplayMemberPath="Label"
                           SelectedValuePath="Value" SelectedValue="{Binding CautionThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </Grid>
             <Grid Style="{StaticResource SettingRowStyle}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding WarningThresholdText}" Style="{StaticResource SettingLabelStyle}" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding WarningOptions}" DisplayMemberPath="Label"
+                <ComboBox Grid.Column="1" Style="{StaticResource PillComboStyle}" ItemsSource="{Binding WarningOptions}" DisplayMemberPath="Label"
                           SelectedValuePath="Value" SelectedValue="{Binding WarningThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </Grid>
             <Grid Style="{StaticResource SettingRowStyle}">
@@ -229,7 +299,7 @@
             <Grid Style="{StaticResource SettingRowStyle}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding TraySourceText}" Style="{StaticResource SettingLabelStyle}" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding TraySourceOptions}" DisplayMemberPath="Label"
+                <ComboBox Grid.Column="1" Style="{StaticResource PillComboStyle}" ItemsSource="{Binding TraySourceOptions}" DisplayMemberPath="Label"
                           SelectedValuePath="Value" SelectedValue="{Binding TraySource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </Grid>
         </StackPanel>
@@ -244,17 +314,19 @@
             </Grid>
         </StackPanel>
 
-        <DockPanel Grid.Row="9" Margin="2,2,2,0">
-            <Button Content="{Binding BackText}" Command="{Binding BackCommand}"
-                    Style="{StaticResource IconButtonStyle}" HorizontalAlignment="Left" />
+        <DockPanel Grid.Row="9" Margin="2,6,2,0">
             <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
                        VerticalAlignment="Center">
                 <!-- Run.Text binds TwoWay by default and VersionText is read-only; a default
                      binding here threw at first layout and took the process down. -->
                 <Run Text="{Binding VersionText, Mode=OneWay}" />
                 <Run Text=" &#x00B7; " />
-                <Hyperlink NavigateUri="{Binding GitHubUrl}" RequestNavigate="OnGitHubRequestNavigate">GitHub</Hyperlink>
+                <Hyperlink NavigateUri="{Binding GitHubUrl}" RequestNavigate="OnGitHubRequestNavigate"
+                           Foreground="{DynamicResource MutedTextBrush}">GitHub</Hyperlink>
             </TextBlock>
+            <Button Content="{Binding BackText}" Command="{Binding BackCommand}"
+                    Style="{StaticResource IconButtonStyle}" FontSize="12" Padding="4,2"
+                    HorizontalAlignment="Left" />
         </DockPanel>
     </Grid>
 </UserControl>

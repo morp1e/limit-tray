@@ -8,4 +8,7 @@
     <SolidColorBrush x:Key="MutedTextBrush" Color="#8A93A3" />
     <SolidColorBrush x:Key="TrackBrush" Color="#1AFFFFFF" />
     <SolidColorBrush x:Key="SeparatorBrush" Color="#0FFFFFFF" />
+    <!-- "On" state of toggles. The mockup used this green; it is not a quota colour. -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#10A37F" />
+    <SolidColorBrush x:Key="PopupBrush" Color="#161920" />
 </ResourceDictionary>
