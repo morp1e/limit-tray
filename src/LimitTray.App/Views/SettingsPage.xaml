@@ -249,7 +249,9 @@
                     Style="{StaticResource IconButtonStyle}" HorizontalAlignment="Left" />
             <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
                        VerticalAlignment="Center">
-                <Run Text="{Binding VersionText}" />
+                <!-- Run.Text binds TwoWay by default and VersionText is read-only; a default
+                     binding here threw at first layout and took the process down. -->
+                <Run Text="{Binding VersionText, Mode=OneWay}" />
                 <Run Text=" &#x00B7; " />
                 <Hyperlink NavigateUri="{Binding GitHubUrl}" RequestNavigate="OnGitHubRequestNavigate">GitHub</Hyperlink>
             </TextBlock>
