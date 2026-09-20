@@ -18,6 +18,7 @@ public sealed class CodexCollector : IQuotaCollector
     private readonly Func<DateTimeOffset> _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly Func<QuotaSnapshot?> _readFallback;
+    private volatile IJsonRpcProcess? _active;
 
     public CodexCollector(
         Func<IJsonRpcProcess> processFactory,
@@ -32,6 +33,14 @@ public sealed class CodexCollector : IQuotaCollector
     }
 
     public string Provider => CodexRateLimitsParser.Provider;
+
+    public void RequestRefresh()
+    {
+        var process = _active;
+        if (process is null) return;
+        _ = process.SendAsync(ReadMessage, CancellationToken.None)
+            .ContinueWith(_ => { }, TaskContinuationOptions.OnlyOnFaulted);
+    }
 
     /// <summary>
     /// The session intentionally remains long-lived: account/rateLimits/updated
@@ -134,6 +143,7 @@ public sealed class CodexCollector : IQuotaCollector
                 if (!initialized && IsInitializeResponse(line))
                 {
                     initialized = true;
+                    _active = process;
                     await process.SendAsync(InitializedNotification, ct).ConfigureAwait(false);
                     await process.SendAsync(ReadMessage, ct).ConfigureAwait(false);
                     refreshLoop = Task.Run(
@@ -154,6 +164,7 @@ public sealed class CodexCollector : IQuotaCollector
         catch (Exception) { /* surec olduse yeniden baslatilir */ }
         finally
         {
+            _active = null;
             refreshCts.Cancel();
             if (refreshLoop is not null)
                 await refreshLoop.ConfigureAwait(false);
@@ -176,7 +187,7 @@ public sealed class CodexCollector : IQuotaCollector
     }
 
     private const string InitializeMessage = """
-    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"limit-tray","title":"Lim'it","version":"0.2.0"}}}
+    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"limit-tray","title":"Lim'it","version":"0.3.0"}}}
     """;
 
     private const string InitializedNotification = """

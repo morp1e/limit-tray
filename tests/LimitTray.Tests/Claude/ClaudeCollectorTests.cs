@@ -26,11 +26,13 @@ public class ClaudeCollectorTests
     }
 
     private static ClaudeCollector Build(
-        IHttpTransport transport, string? token, List<TimeSpan>? delays = null) =>
+        IHttpTransport transport, string? token, List<TimeSpan>? delays = null,
+        Func<TimeSpan>? interval = null) =>
         new(transport,
             new ClaudeCredentialReader(() => token),
             () => Now,
-            (d, _) => { delays?.Add(d); return Task.CompletedTask; });
+            (d, _) => { delays?.Add(d); return Task.CompletedTask; },
+            interval);
 
     private static async Task<List<QuotaSnapshot>> Take(
         ClaudeCollector collector, int count)
@@ -155,4 +157,75 @@ public class ClaudeCollectorTests
 
         Assert.DoesNotContain("super-secret-token", snaps[0].Detail ?? "");
     }
+
+    [Fact]
+    public async Task Watch_UsesTheInjectedInterval()
+    {
+        var delays = new List<TimeSpan>();
+        var transport = new FakeTransport(Ok(), Ok());
+        var collector = Build(transport, "tok", delays, () => TimeSpan.FromSeconds(300));
+
+        await Take(collector, 2);
+
+        Assert.Equal(TimeSpan.FromSeconds(300), delays[0]);
+    }
+
+    [Fact]
+    public async Task RequestRefresh_CutsTheWaitShort()
+    {
+        var transport = new FakeTransport(Ok(), Ok());
+        var collector = new ClaudeCollector(transport, new ClaudeCredentialReader(() => "tok"), () => Now,
+            (d, token) =>
+            {
+                var tcs = new TaskCompletionSource();
+                token.Register(() => tcs.TrySetCanceled(token));
+                return tcs.Task;
+            });
+
+        var seen = new List<QuotaSnapshot>();
+        using var cts = new CancellationTokenSource();
+        var reader = Task.Run(async () =>
+        {
+            await foreach (var s in collector.Watch(cts.Token))
+            {
+                seen.Add(s);
+                if (seen.Count == 1) collector.RequestRefresh();
+                if (seen.Count == 2) { cts.Cancel(); break; }
+            }
+        });
+
+        await reader.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(2, seen.Count);
+        Assert.Equal(2, transport.SeenHeaders.Count);
+    }
+
+    [Fact]
+    public async Task RequestRefresh_IsIgnoredWhileBackingOff()
+    {
+        var transport = new FakeTransport(RateLimited(), Ok());
+        var waited = new TaskCompletionSource();
+        var collector = new ClaudeCollector(transport, new ClaudeCredentialReader(() => "tok"), () => Now,
+            (d, token) =>
+            {
+                waited.TrySetResult();
+                var tcs = new TaskCompletionSource();
+                token.Register(() => tcs.TrySetCanceled(token));
+                return tcs.Task;
+            });
+
+        using var cts = new CancellationTokenSource();
+        var enumerator = collector.Watch(cts.Token).GetAsyncEnumerator();
+        Assert.True(await enumerator.MoveNextAsync());
+        var second = enumerator.MoveNextAsync();
+        await waited.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        collector.RequestRefresh();
+        await Task.Delay(100);
+        Assert.False(second.IsCompleted);
+        cts.Cancel();
+    }
+
+    private static HttpTransportResult Ok() => new(200,
+        """{"five_hour":{"utilization":50,"resets_at":"2026-09-04T00:00:00Z"},"seven_day":{"utilization":25,"resets_at":"2026-09-10T00:00:00Z"}}""");
+
+    private static HttpTransportResult RateLimited() => new(429, "");
 }

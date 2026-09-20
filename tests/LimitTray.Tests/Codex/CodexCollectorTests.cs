@@ -14,12 +14,16 @@ public class CodexCollectorTests
     {
         private readonly string[] _lines;
         private readonly bool _failStart;
+        private readonly bool _blockAfterLines;
+        public TaskCompletionSource<bool> InitializedSignal { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<string> Sent { get; } = new();
 
-        public FakeProcess(string[] lines, bool failStart = false)
+        public FakeProcess(string[] lines, bool failStart = false, bool blockAfterLines = false)
         {
             _lines = lines;
             _failStart = failStart;
+            _blockAfterLines = blockAfterLines;
         }
 
         public Task StartAsync(CancellationToken ct) =>
@@ -30,6 +34,8 @@ public class CodexCollectorTests
         public Task SendAsync(string jsonLine, CancellationToken ct)
         {
             Sent.Add(jsonLine);
+            if (jsonLine.Contains("\"initialized\"", StringComparison.Ordinal))
+                InitializedSignal.TrySetResult(true);
             return Task.CompletedTask;
         }
 
@@ -42,6 +48,9 @@ public class CodexCollectorTests
                 yield return line;
                 await Task.Yield();
             }
+
+            if (_blockAfterLines)
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         }
 
         public void Dispose() { }
@@ -233,5 +242,35 @@ public class CodexCollectorTests
         await Take(collector, 1);
 
         Assert.All(delays, d => Assert.True(d <= TimeSpan.FromMinutes(5)));
+    }
+
+    [Fact]
+    public async Task RequestRefresh_SendsReadToTheActiveProcess()
+    {
+        var process = new FakeProcess(new[] { InitLine }, blockAfterLines: true);
+        var refreshWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var collector = new CodexCollector(
+            () => process, () => Now, (_, ct) => refreshWait.Task.WaitAsync(ct), () => null);
+
+        using var cts = new CancellationTokenSource();
+        var enumerator = collector.Watch(cts.Token).GetAsyncEnumerator();
+        var pump = enumerator.MoveNextAsync();
+        await process.InitializedSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var before = process.Sent.Count(l => l.Contains("account/rateLimits/read"));
+        collector.RequestRefresh();
+        await Task.Delay(100);
+
+        Assert.Equal(before + 1, process.Sent.Count(l => l.Contains("account/rateLimits/read")));
+        cts.Cancel();
+        try { await pump; } catch (OperationCanceledException) { }
+    }
+
+    [Fact]
+    public void RequestRefresh_WithoutAProcessIsSilent()
+    {
+        var collector = new CodexCollector(() => throw new InvalidOperationException(), () => Now,
+            (_, _) => Task.CompletedTask, () => null);
+        collector.RequestRefresh();
     }
 }
