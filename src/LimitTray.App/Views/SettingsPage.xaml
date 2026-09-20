@@ -248,13 +248,6 @@
                          Style="{StaticResource SegmentStyle}" SelectedValuePath="Value"
                          SelectedValue="{Binding Language, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </Grid>
-            <Grid Style="{StaticResource SettingRowStyle}"
-                  Visibility="{Binding GlassEffectVisible, Converter={StaticResource BooleanVisibility}}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding GlassEffectText}" Style="{StaticResource SettingLabelStyle}" />
-                <CheckBox Grid.Column="1" Style="{StaticResource ToggleStyle}"
-                          IsChecked="{Binding GlassEffect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            </Grid>
         </StackPanel>
 
         <TextBlock Grid.Row="4" Text="{Binding DataGroupText}" Style="{StaticResource GroupHeaderStyle}" />

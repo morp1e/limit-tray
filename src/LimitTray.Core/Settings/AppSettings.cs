@@ -22,7 +22,6 @@ public sealed record QuotaThresholds(double Caution, double Warning)
 public sealed record AppSettings(
     ThemeMode Theme,
     LanguageMode Language,
-    bool GlassEffect,
     int RefreshSeconds,
     QuotaThresholds Thresholds,
     bool Notifications,
@@ -33,7 +32,7 @@ public sealed record AppSettings(
     public static readonly int[] AllowedRefreshSeconds = { 60, 120, 300 };
 
     public static readonly AppSettings Default = new(
-        ThemeMode.System, LanguageMode.System, GlassEffect: true, RefreshSeconds: 120,
+        ThemeMode.System, LanguageMode.System, RefreshSeconds: 120,
         QuotaThresholds.Default, Notifications: true, TrayIconStyle.DualBar,
         TrayIconSource.Highest, new HashSet<string>(StringComparer.Ordinal));
 
@@ -48,11 +47,11 @@ public sealed record AppSettings(
     public bool Equals(AppSettings? other) =>
         other is not null
         && Theme == other.Theme && Language == other.Language
-        && GlassEffect == other.GlassEffect && RefreshSeconds == other.RefreshSeconds
+        && RefreshSeconds == other.RefreshSeconds
         && Thresholds == other.Thresholds && Notifications == other.Notifications
         && TrayStyle == other.TrayStyle && TraySource == other.TraySource
         && ExpandedProviders.SetEquals(other.ExpandedProviders);
 
     public override int GetHashCode() => HashCode.Combine(
-        Theme, Language, GlassEffect, RefreshSeconds, Thresholds, Notifications, TrayStyle, TraySource);
+        Theme, Language, RefreshSeconds, Thresholds, Notifications, TrayStyle, TraySource);
 }

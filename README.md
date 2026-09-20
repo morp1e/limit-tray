@@ -133,7 +133,7 @@ first run.
 
 **Settings.** Everything you can change lives on the second page of the panel and in
 `%LOCALAPPDATA%\limit-tray\settings.json`: theme (system, dark, light), language, the
-glass effect, the refresh interval (60, 120 or 300 seconds), the two colour thresholds,
+refresh interval (60, 120 or 300 seconds), the two colour thresholds,
 notifications, the tray icon style (a ring, a number or two bars, one per provider) and
 which window drives it, and start with Windows. The file holds setting values and nothing
 else; a missing or corrupt file means defaults, and a file that cannot be written is
@@ -228,7 +228,7 @@ task by task. The second round (usage history, burn-rate projection, notificatio
 was written by Claude. The third round, v0.3, was split: Claude wrote the spec and plan,
 Codex wrote the settings model, colour rule, tray icon model and collector changes in
 `LimitTray.Core` and the first cut of the WPF pages, and Claude did the visual work
-(the mockup-matched look, the glass, the settings page polish) and every on-screen check.
+(the mockup-matched look, the settings page polish) and every on-screen check.
 The spec and plan are in [`docs/`](docs/) if you want to see the actual process, including
 the defects that came out of it.
 

@@ -10,7 +10,7 @@ public class SettingsFileTests
     {
         var original = AppSettings.Default with
         {
-            Theme = ThemeMode.Light, Language = LanguageMode.English, GlassEffect = false,
+            Theme = ThemeMode.Light, Language = LanguageMode.English,
             RefreshSeconds = 300, Thresholds = new QuotaThresholds(70, 90), Notifications = false,
             TrayStyle = TrayIconStyle.Number, TraySource = TrayIconSource.CodexWeekly,
             ExpandedProviders = new HashSet<string> { "claude" },
@@ -66,7 +66,7 @@ public class SettingsFileTests
         var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet();
         var allowed = new HashSet<string>
         {
-            "version", "theme", "language", "glassEffect", "refreshSeconds",
+            "version", "theme", "language", "refreshSeconds",
             "cautionPercent", "warningPercent", "notifications", "trayStyle", "traySource",
             "expandedProviders",
         };

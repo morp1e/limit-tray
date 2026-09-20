@@ -21,7 +21,6 @@ public static class SettingsFile
             w.WriteNumber("version", Version);
             w.WriteString("theme", s.Theme.ToString());
             w.WriteString("language", s.Language.ToString());
-            w.WriteBoolean("glassEffect", s.GlassEffect);
             w.WriteNumber("refreshSeconds", s.RefreshSeconds);
             w.WriteNumber("cautionPercent", s.Thresholds.Caution);
             w.WriteNumber("warningPercent", s.Thresholds.Warning);
@@ -61,7 +60,6 @@ public static class SettingsFile
             return new AppSettings(
                 Enum(root, "theme", d.Theme),
                 Enum(root, "language", d.Language),
-                Bool(root, "glassEffect", d.GlassEffect),
                 Int(root, "refreshSeconds", d.RefreshSeconds),
                 new QuotaThresholds(
                     Double(root, "cautionPercent", d.Thresholds.Caution),

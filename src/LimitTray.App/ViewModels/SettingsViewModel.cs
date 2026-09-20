@@ -53,12 +53,6 @@ public sealed class SettingsViewModel : ObservableObject
         set => Apply(_app.Settings with { Language = value });
     }
 
-    public bool GlassEffect
-    {
-        get => _app.Settings.GlassEffect;
-        set => Apply(_app.Settings with { GlassEffect = value });
-    }
-
     public int RefreshSeconds
     {
         get => _app.Settings.RefreshSeconds;
@@ -113,7 +107,6 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    public bool GlassEffectVisible => Environment.OSVersion.Version.Build >= 22621;
 
     public string SettingsText => _strings.Settings;
     public string BackText => "\u2039 " + _strings.BackToPanel;
@@ -124,7 +117,6 @@ public sealed class SettingsViewModel : ObservableObject
     public string SystemGroupText => _strings.GroupSystem;
     public string ThemeText => _strings.Theme;
     public string LanguageText => _strings.Language;
-    public string GlassEffectText => _strings.GlassEffect;
     public string RefreshIntervalText => _strings.RefreshInterval;
     public string CautionThresholdText => _strings.CautionThreshold;
     public string WarningThresholdText => _strings.WarningThreshold;
@@ -156,7 +148,6 @@ public sealed class SettingsViewModel : ObservableObject
         RebuildWarningOptions();
         RaisePropertyChanged(nameof(Theme));
         RaisePropertyChanged(nameof(Language));
-        RaisePropertyChanged(nameof(GlassEffect));
         RaisePropertyChanged(nameof(RefreshSeconds));
         RaisePropertyChanged(nameof(CautionThreshold));
         RaisePropertyChanged(nameof(WarningThreshold));
@@ -200,7 +191,6 @@ public sealed class SettingsViewModel : ObservableObject
         RaisePropertyChanged(nameof(SystemGroupText));
         RaisePropertyChanged(nameof(ThemeText));
         RaisePropertyChanged(nameof(LanguageText));
-        RaisePropertyChanged(nameof(GlassEffectText));
         RaisePropertyChanged(nameof(RefreshIntervalText));
         RaisePropertyChanged(nameof(CautionThresholdText));
         RaisePropertyChanged(nameof(WarningThresholdText));

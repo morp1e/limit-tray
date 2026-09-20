@@ -65,7 +65,6 @@ public sealed class Strings
         ThemeLight = "Light",
         Language = "Language",
         LanguageSystem = "System",
-        GlassEffect = "Glass effect",
         RefreshInterval = "Refresh interval",
         Seconds = "{0} s",
         Minutes = "{0} min",
@@ -137,7 +136,6 @@ public sealed class Strings
         ThemeLight = "Açık",
         Language = "Dil",
         LanguageSystem = "Sistem",
-        GlassEffect = "Cam efekti",
         RefreshInterval = "Yenileme aralığı",
         Seconds = "{0} sn",
         Minutes = "{0} dk",
@@ -219,7 +217,6 @@ public sealed class Strings
     public required string ThemeLight { get; init; }
     public required string Language { get; init; }
     public required string LanguageSystem { get; init; }
-    public required string GlassEffect { get; init; }
     public required string RefreshInterval { get; init; }
     public required string Seconds { get; init; }
     public required string Minutes { get; init; }

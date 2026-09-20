@@ -280,7 +280,7 @@ public partial class App : System.Windows.Application
             if (_trayIcon is not null) _trayIcon.ContextMenuStrip = BuildMenu();
             _popup?.UpdateStrings(_strings);
         }
-        if (previous.Theme != _settings.Theme || previous.GlassEffect != _settings.GlassEffect)
+        if (previous.Theme != _settings.Theme)
             ApplyTheme();
         // The interval delegate reads _settings on the next tick; a shorter interval takes
         // effect immediately by cutting the current wait short.

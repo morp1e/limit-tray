@@ -11,7 +11,6 @@ public class AppSettingsTests
         var s = AppSettings.Default;
         Assert.Equal(ThemeMode.System, s.Theme);
         Assert.Equal(LanguageMode.System, s.Language);
-        Assert.True(s.GlassEffect);
         Assert.Equal(120, s.RefreshSeconds);
         Assert.Equal(60, s.Thresholds.Caution);
         Assert.Equal(85, s.Thresholds.Warning);

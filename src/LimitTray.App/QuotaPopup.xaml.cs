@@ -39,27 +39,16 @@ public partial class QuotaPopup : Window
         };
     }
 
+    /// <summary>
+    /// Native rounded corners and no border line, plus the brand glows. The acrylic
+    /// backdrop that lived here in the v0.3 development branch was removed on
+    /// 2026-09-20: it worked only through the Windows 11 system backdrop, and even there
+    /// the difference on screen was not worth a setting.
+    /// </summary>
     public void ApplyBackdrop(bool dark)
     {
         WindowBackdrop.ApplyNativeShape(this, dark);
         PaintGlows(dark);
-
-        if (FindResource("SurfaceBrush") is not SolidColorBrush surface) return;
-
-        var applied = _app.Settings.GlassEffect
-            && WindowBackdrop.TryApplyAcrylic(this, surface.Color);
-        if (!applied)
-        {
-            WindowBackdrop.Clear(this);
-            RootBorder.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
-            return;
-        }
-
-        // The blur shows through whatever alpha the surface leaves; 0.78 keeps text
-        // readable over a busy desktop while still reading as glass.
-        var glass = new SolidColorBrush(surface.Color) { Opacity = 0.78 };
-        glass.Freeze();
-        RootBorder.Background = glass;
     }
 
     /// <summary>

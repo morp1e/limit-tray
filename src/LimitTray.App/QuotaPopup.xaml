@@ -9,8 +9,8 @@
     <!--
         No WindowChrome: with GlassFrameThickness it drew a light DWM frame and squared the
         corners. Rounding and the missing border line come from DWM attributes set in
-        WindowBackdrop, and the glass itself from the composition attribute, so this tree
-        only has to paint the surface and the two brand glows the mockup had.
+        WindowBackdrop, so this tree only has to paint the surface and the two brand glows
+        the mockup had.
     -->
     <Border x:Name="RootBorder" Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
