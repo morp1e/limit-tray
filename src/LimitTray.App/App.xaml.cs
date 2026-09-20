@@ -13,6 +13,7 @@ using LimitTray.Core.Http;
 using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
 using LimitTray.Core.Process;
+using LimitTray.Core.Settings;
 using LimitTray.Core.Store;
 
 namespace LimitTray.App;
@@ -26,6 +27,7 @@ public partial class App : System.Windows.Application
     private readonly QuotaStore _store = new(() => DateTimeOffset.Now);
     private readonly QuotaAlerts _alerts = new();
     private readonly HistoryStore _historyStore = HistoryStore.ForDefaultPath();
+    private AppSettings _settings = AppSettings.Default;
 
     private UsageHistory _history = new();
     private NotifyIcon? _trayIcon;
@@ -44,7 +46,8 @@ public partial class App : System.Windows.Application
         _history = _historyStore.Load();
         _popup = new QuotaPopup(_strings, _history);
 
-        _currentIcon = TrayIconRenderer.Render(null, hasUnhealthy: false);
+        _currentIcon = TrayIconRenderer.Render(
+            TrayIconModelBuilder.Build(Array.Empty<QuotaSnapshot>(), _settings));
         _trayIcon = new NotifyIcon
         {
             Icon = _currentIcon.Icon,
@@ -195,9 +198,7 @@ public partial class App : System.Windows.Application
 
         var snapshots = _store.All();
 
-        var replacement = TrayIconRenderer.Render(
-            QuotaFormatter.HighestPercent(snapshots),
-            QuotaFormatter.HasUnhealthy(snapshots));
+        var replacement = TrayIconRenderer.Render(TrayIconModelBuilder.Build(snapshots, _settings));
 
         var previous = _currentIcon;
         _currentIcon = replacement;

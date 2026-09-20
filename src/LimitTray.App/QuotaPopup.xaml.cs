@@ -8,6 +8,7 @@ using System.Windows.Shapes;
 using LimitTray.Core.History;
 using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
+using MediaBrushes = System.Windows.Media.Brushes;
 
 namespace LimitTray.App;
 
@@ -77,7 +78,7 @@ public partial class QuotaPopup : Window
 
         panel.Children.Add(Text(
             QuotaFormatter.ProviderTitle(snapshot.Provider, _strings),
-            16, Brushes.White, FontWeights.SemiBold, new Thickness(0, 0, 0, 16)));
+            16, MediaBrushes.White, FontWeights.SemiBold, new Thickness(0, 0, 0, 16)));
 
         if (snapshot.Session is null && snapshot.Weekly is null)
         {
@@ -141,7 +142,10 @@ public partial class QuotaPopup : Window
             });
 
         var stale = snapshot.Health == HealthState.Stale;
-        var colour = TrayIconRenderer.ColorFor(QuotaFormatter.SeverityFor(window.Percent));
+        var colour = Brushes.ToDrawing(Theme.ColourFor(
+            snapshot.Provider,
+            QuotaFormatter.SeverityFor(window.Percent),
+            snapshot.Health));
         var brush = new SolidColorBrush(Color.FromArgb(
             stale ? (byte)120 : (byte)255, colour.R, colour.G, colour.B));
 
@@ -184,7 +188,7 @@ public partial class QuotaPopup : Window
         header.Children.Add(new TextBlock
         {
             Text = QuotaFormatter.WindowTitle(kind, _strings),
-            Foreground = stale ? Brushes.Gray : new SolidColorBrush(Color.FromRgb(222, 228, 237)),
+            Foreground = stale ? MediaBrushes.Gray : new SolidColorBrush(Color.FromRgb(222, 228, 237)),
             FontSize = 13,
             FontWeight = FontWeights.Medium,
             VerticalAlignment = VerticalAlignment.Center,
