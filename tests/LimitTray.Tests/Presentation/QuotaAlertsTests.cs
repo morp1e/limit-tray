@@ -1,5 +1,6 @@
 using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
+using LimitTray.Core.Settings;
 using Xunit;
 
 namespace LimitTray.Tests.Presentation;
@@ -89,5 +90,26 @@ public class QuotaAlertsTests
 
         Assert.Equal("Claude Usage, 5-hour window: 91%", english);
         Assert.Equal("Claude Kullanımı, 5 saatlik pencere: %91", turkish);
+    }
+
+    [Fact]
+    public void Inspect_UsesConfiguredWarningThreshold()
+    {
+        var alerts = new QuotaAlerts(new QuotaThresholds(50, 70));
+
+        Assert.Single(alerts.Inspect(Snapshot(75)));
+    }
+
+    [Fact]
+    public void UpdateThresholds_RearmsOnlyWhenBelowTheNewLine()
+    {
+        var alerts = new QuotaAlerts(new QuotaThresholds(60, 85));
+        var at90 = Snapshot(90);
+
+        Assert.Single(alerts.Inspect(at90));
+        alerts.UpdateThresholds(new QuotaThresholds(60, 95));
+        Assert.Empty(alerts.Inspect(at90));   // 90 is below 95: silent, and re-armed
+        alerts.UpdateThresholds(new QuotaThresholds(60, 85));
+        Assert.Single(alerts.Inspect(at90));  // crossed again after re-arming
     }
 }

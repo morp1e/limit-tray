@@ -1,6 +1,7 @@
 using System.Globalization;
 using LimitTray.Core.History;
 using LimitTray.Core.Model;
+using LimitTray.Core.Settings;
 
 namespace LimitTray.Core.Presentation;
 
@@ -11,13 +12,15 @@ public static class QuotaFormatter
 
     public static Strings DefaultStrings { get; set; } =
         Strings.ForCulture(CultureInfo.CurrentUICulture);
-    public const double CautionThreshold = 60.0;
-    public const double WarningThreshold = 85.0;
+    public static readonly double CautionThreshold = QuotaThresholds.Default.Caution;
+    public static readonly double WarningThreshold = QuotaThresholds.Default.Warning;
 
-    public static QuotaSeverity SeverityFor(double percent) => percent switch
+    public static QuotaSeverity SeverityFor(double percent) => SeverityFor(percent, QuotaThresholds.Default);
+
+    public static QuotaSeverity SeverityFor(double percent, QuotaThresholds thresholds) => percent switch
     {
-        > WarningThreshold => QuotaSeverity.Warning,
-        >= CautionThreshold => QuotaSeverity.Caution,
+        var p when p > thresholds.Warning => QuotaSeverity.Warning,
+        var p when p >= thresholds.Caution => QuotaSeverity.Caution,
         _ => QuotaSeverity.Normal,
     };
 

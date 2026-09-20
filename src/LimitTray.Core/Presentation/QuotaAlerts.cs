@@ -1,4 +1,5 @@
 using LimitTray.Core.Model;
+using LimitTray.Core.Settings;
 
 namespace LimitTray.Core.Presentation;
 
@@ -15,8 +16,21 @@ public sealed record QuotaAlert(string Provider, WindowKind Kind, double Percent
 /// </summary>
 public sealed class QuotaAlerts
 {
+    private QuotaThresholds _thresholds;
     private readonly Dictionary<(string Provider, WindowKind Kind), bool> _warned = new();
     private readonly object _gate = new();
+
+    public QuotaAlerts() : this(QuotaThresholds.Default) { }
+    public QuotaAlerts(QuotaThresholds thresholds) => _thresholds = thresholds;
+
+    /// <summary>
+    /// Raising the warning line above a window that already fired re-arms it: the user
+    /// asked to be told later, so they will be told again when it crosses the new line.
+    /// </summary>
+    public void UpdateThresholds(QuotaThresholds thresholds)
+    {
+        lock (_gate) _thresholds = thresholds;
+    }
 
     /// <summary>
     /// Returns the alerts a snapshot newly justifies. Only Fresh snapshots can raise one:
@@ -44,7 +58,7 @@ public sealed class QuotaAlerts
         if (window is null) return;
 
         var key = (provider, kind);
-        var above = QuotaFormatter.SeverityFor(window.Percent) == QuotaSeverity.Warning;
+        var above = QuotaFormatter.SeverityFor(window.Percent, _thresholds) == QuotaSeverity.Warning;
 
         if (!above)
         {
