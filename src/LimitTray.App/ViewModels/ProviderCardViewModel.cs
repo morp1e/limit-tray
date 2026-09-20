@@ -58,8 +58,12 @@ public sealed class ProviderCardViewModel : ObservableObject
             ? string.Format(CultureInfo.InvariantCulture, strings.StaleBadge,
                 QuotaFormatter.Age(snapshot.FetchedAt, now, strings))
             : null;
-        LastUpdatedText = string.Format(CultureInfo.InvariantCulture, strings.LastUpdated,
-            QuotaFormatter.Age(snapshot.FetchedAt, now, strings));
+        // "Updated just now" already carries its own verb; wrapping it in "Last updated ..."
+        // read as a stutter on screen.
+        var age = QuotaFormatter.Age(snapshot.FetchedAt, now, strings);
+        LastUpdatedText = age == strings.UpdatedNow
+            ? age
+            : string.Format(CultureInfo.InvariantCulture, strings.LastUpdated, age);
 
         var windows = Windows(snapshot).ToList();
         var fullest = windows.Count == 0

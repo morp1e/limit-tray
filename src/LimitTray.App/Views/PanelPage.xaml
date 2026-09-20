@@ -9,6 +9,7 @@
         <local:PercentToWidthConverter x:Key="PercentToWidth" />
         <local:NullableToVisibilityConverter x:Key="NullableVisibility" />
         <local:BooleanToVisibilityConverter x:Key="BooleanVisibility" />
+        <local:BooleanToOpacityConverter x:Key="BooleanOpacity" />
 
         <Style x:Key="IconButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -125,12 +126,23 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
+                        <DockPanel Grid.Row="0">
+                            <!-- The terminal button lives in the header row, laid out always and
+                                 faded in on hover, so it never fights the reset text for the corner. -->
+                            <Button DockPanel.Dock="Right" Content="{Binding OpenTerminalGlyph}"
+                                    ToolTip="{Binding OpenTerminalText}" Command="{Binding OpenTerminalCommand}"
+                                    Style="{StaticResource IconButtonStyle}" FontSize="14" Padding="4,0"
+                                    Margin="6,-2,0,0" VerticalAlignment="Top">
+                                <Button.Opacity>
+                                    <Binding Path="IsMouseOver" Converter="{StaticResource BooleanOpacity}"
+                                             RelativeSource="{RelativeSource AncestorType=Border}" />
+                                </Button.Opacity>
+                            </Button>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding ResetShortText}" VerticalAlignment="Top"
+                                       Foreground="{DynamicResource MutedTextBrush}" FontSize="11" Margin="0,2,0,0" />
                             <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextBrush}"
                                        FontSize="15" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding ResetShortText}" HorizontalAlignment="Right"
-                                       Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
-                        </Grid>
+                        </DockPanel>
                         <ItemsControl Grid.Row="1" ItemsSource="{Binding Rows}"
                                       ItemTemplate="{StaticResource WindowRowTemplate}">
                             <ItemsControl.Visibility>
@@ -148,21 +160,6 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top"
-                            Background="{DynamicResource CardBrush}" CornerRadius="4">
-                        <Button Content="{Binding OpenTerminalGlyph}" ToolTip="{Binding OpenTerminalText}"
-                                Command="{Binding OpenTerminalCommand}"
-                                Style="{StaticResource IconButtonStyle}" FontSize="14"
-                                Padding="3,0">
-                            <Button.Visibility>
-                                <Binding Path="IsMouseOver" Converter="{StaticResource BooleanVisibility}">
-                                    <Binding.RelativeSource>
-                                        <RelativeSource Mode="FindAncestor" AncestorType="Border" AncestorLevel="2" />
-                                    </Binding.RelativeSource>
-                                </Binding>
-                            </Button.Visibility>
-                        </Button>
-                    </Border>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -211,9 +208,11 @@
             <ItemsControl ItemsSource="{Binding Cards}" />
         </ScrollViewer>
         <DockPanel Grid.Row="2" Margin="2,4,2,0">
-            <TextBlock Text="{Binding FooterText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
+            <!-- The docked child goes first: the last child of a DockPanel fills the
+                 remainder, which is what glued the version to the footer text. -->
             <TextBlock Text="{Binding VersionText}" DockPanel.Dock="Right"
                        Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
+            <TextBlock Text="{Binding FooterText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
         </DockPanel>
     </Grid>
 </UserControl>

@@ -11,7 +11,12 @@ public static class TerminalLauncher
         var command = provider switch { "claude" => "claude", "codex" => "codex", _ => null };
         if (command is null) return false;
 
-        return TryStart("wt.exe", $"new-tab {command}")
+        // The CLI is launched through PowerShell in both cases. Windows Terminal given the
+        // bare command name resolves it with CreateProcess semantics, which was observed
+        // to open and close a tab with nothing in it; a shell resolves PATH the way the
+        // user's own terminal does.
+        var shell = $"powershell.exe -NoExit -Command {command}";
+        return TryStart("wt.exe", $"new-tab {shell}")
             || TryStart("powershell.exe", $"-NoExit -Command {command}");
     }
 
