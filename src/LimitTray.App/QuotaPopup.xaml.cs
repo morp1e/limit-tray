@@ -17,21 +17,23 @@ public partial class QuotaPopup : Window
     private const double PageWidth = 360;
 
     private readonly PanelViewModel _panel;
+    private readonly SettingsViewModel _settings;
 
     public QuotaPopup(App app, Strings strings, UsageHistory history)
     {
         _panel = new PanelViewModel(app, history, strings, ShowSettings);
+        _settings = new SettingsViewModel(app, strings, ShowPanel);
         InitializeComponent();
 
         PanelHost.Content = new PanelPage { DataContext = _panel };
-        SettingsHost.Content = new ContentPresenter();
+        SettingsHost.Content = new SettingsPage { DataContext = _settings };
         SizeChanged += (_, _) => PositionNearTray();
     }
 
     public void Show(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
     {
         var opening = !IsVisible;
-        _panel.Update(snapshots, now);
+        Update(snapshots, now);
         ShowPanel();
 
         if (opening)
@@ -46,7 +48,30 @@ public partial class QuotaPopup : Window
         if (opening) Activate();
     }
 
-    public void ShowSettings() => SlideTo(showSettings: true);
+    public void Update(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now) =>
+        _panel.Update(snapshots, now);
+
+    public void UpdateStrings(Strings strings)
+    {
+        _panel.UpdateStrings(strings);
+        _settings.UpdateStrings(strings);
+    }
+
+    public void ShowSettings()
+    {
+        var opening = !IsVisible;
+        if (opening)
+        {
+            Left = -32000;
+            Top = -32000;
+            base.Show();
+        }
+
+        SlideTo(showSettings: true);
+        UpdateLayout();
+        PositionNearTray();
+        if (opening) Activate();
+    }
 
     public void ShowPanel() => SlideTo(showSettings: false);
 

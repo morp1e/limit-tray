@@ -111,6 +111,7 @@ public partial class App : System.Windows.Application
             menu.Items.Add(new ToolStripSeparator());
         }
 
+        menu.Items.Add(_strings.Settings, null, (_, _) => _popup?.ShowSettings());
         menu.Items.Add(_strings.Exit, null, (_, _) => Shutdown());
         return menu;
     }
@@ -237,12 +238,16 @@ public partial class App : System.Windows.Application
         _trayIcon.Text = tooltip.Length > 63 ? tooltip[..63] : tooltip;
 
         if (_popup is { IsVisible: true })
-            _popup.Show(snapshots, DateTimeOffset.Now);
+            _popup.Update(snapshots, DateTimeOffset.Now);
     }
 
     public AppSettings Settings => _settings;
 
     public SettingsStore SettingsStore => _settingsStore;
+
+    internal Strings Strings => _strings;
+
+    internal IReadOnlyList<string> StartupArguments => _arguments;
 
     public event Action<AppSettings>? SettingsChanged;
 
@@ -256,7 +261,8 @@ public partial class App : System.Windows.Application
         if (previous.Language != _settings.Language)
         {
             _strings = ResolveStrings(_arguments, _settings.Language);
-            _trayIcon!.ContextMenuStrip = BuildMenu();
+            if (_trayIcon is not null) _trayIcon.ContextMenuStrip = BuildMenu();
+            _popup?.UpdateStrings(_strings);
         }
         // The interval delegate reads _settings on the next tick; a shorter interval takes
         // effect immediately by cutting the current wait short.

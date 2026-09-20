@@ -14,7 +14,7 @@ public sealed class PanelViewModel : ObservableObject
 {
     private readonly App _app;
     private readonly UsageHistory _history;
-    private readonly Strings _strings;
+    private Strings _strings;
     private readonly Action _showSettings;
     private bool _isRefreshing;
     private string _footerText;
@@ -41,6 +41,14 @@ public sealed class PanelViewModel : ObservableObject
     public bool IsRefreshing { get => _isRefreshing; private set => Set(ref _isRefreshing, value); }
     public RelayCommand RefreshCommand { get; }
     public RelayCommand SettingsCommand { get; }
+
+    public void UpdateStrings(Strings strings)
+    {
+        _strings = strings;
+        RaisePropertyChanged(nameof(FooterText));
+        RaisePropertyChanged(nameof(RefreshText));
+        RaisePropertyChanged(nameof(SettingsText));
+    }
 
     public void Update(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
     {
