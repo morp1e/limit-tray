@@ -9,6 +9,7 @@ using LimitTray.App.Views;
 using LimitTray.Core.History;
 using LimitTray.Core.Model;
 using LimitTray.Core.Presentation;
+using LimitTray.Core.Settings;
 
 namespace LimitTray.App;
 
@@ -18,16 +19,39 @@ public partial class QuotaPopup : Window
 
     private readonly PanelViewModel _panel;
     private readonly SettingsViewModel _settings;
+    private readonly App _app;
 
     public QuotaPopup(App app, Strings strings, UsageHistory history)
     {
+        _app = app;
         _panel = new PanelViewModel(app, history, strings, ShowSettings);
         _settings = new SettingsViewModel(app, strings, ShowPanel);
         InitializeComponent();
 
         PanelHost.Content = new PanelPage { DataContext = _panel };
         SettingsHost.Content = new SettingsPage { DataContext = _settings };
+        SourceInitialized += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
+        _app.SettingsChanged += OnSettingsChanged;
         SizeChanged += (_, _) => PositionNearTray();
+    }
+
+    public void ApplyBackdrop(bool dark)
+    {
+        var applied = _app.Settings.GlassEffect && WindowBackdrop.TryApplyAcrylic(this, dark);
+        if (!applied) WindowBackdrop.Clear(this);
+
+        if (FindResource("SurfaceBrush") is not SolidColorBrush surface)
+            return;
+
+        if (!applied)
+        {
+            RootBorder.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+            return;
+        }
+
+        var backdropBrush = surface.Clone();
+        backdropBrush.Opacity = 0.72;
+        RootBorder.Background = backdropBrush;
     }
 
     public void Show(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)
@@ -112,4 +136,13 @@ public partial class QuotaPopup : Window
     }
 
     private void OnDeactivated(object? sender, EventArgs e) => Hide();
+
+    private void OnSettingsChanged(AppSettings settings) => ApplyBackdrop(IsDarkTheme(settings.Theme));
+
+    private static bool IsDarkTheme(LimitTray.Core.Settings.ThemeMode mode) => mode switch
+    {
+        LimitTray.Core.Settings.ThemeMode.Light => false,
+        LimitTray.Core.Settings.ThemeMode.Dark => true,
+        _ => !SystemTheme.IsLight(),
+    };
 }

@@ -52,7 +52,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#24FFFFFF" />
+                    <Setter Property="Background" Value="{DynamicResource CardHoverBorderBrush}" />
                     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">

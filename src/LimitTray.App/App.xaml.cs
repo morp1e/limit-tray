@@ -51,6 +51,8 @@ public partial class App : System.Windows.Application
         _alerts.UpdateThresholds(_settings.Thresholds);
         _history = _historyStore.Load();
         _popup = new QuotaPopup(this, _strings, _history);
+        ApplyTheme();
+        SystemTheme.Changed += (_, _) => Dispatcher.Invoke(ApplyTheme);
 
         _currentIcon = TrayIconRenderer.Render(
             TrayIconModelBuilder.Build(Array.Empty<QuotaSnapshot>(), _settings));
@@ -251,6 +253,20 @@ public partial class App : System.Windows.Application
 
     public event Action<AppSettings>? SettingsChanged;
 
+    private void ApplyTheme()
+    {
+        var light = _settings.Theme switch
+        {
+            LimitTray.Core.Settings.ThemeMode.Light => true,
+            LimitTray.Core.Settings.ThemeMode.Dark => false,
+            _ => SystemTheme.IsLight(),
+        };
+        var uri = new Uri(light ? "Themes/Light.xaml" : "Themes/Dark.xaml", UriKind.Relative);
+        Resources.MergedDictionaries.Clear();
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = uri });
+        _popup?.ApplyBackdrop(dark: !light);
+    }
+
     public void ApplySettings(AppSettings next)
     {
         var previous = _settings;
@@ -264,6 +280,8 @@ public partial class App : System.Windows.Application
             if (_trayIcon is not null) _trayIcon.ContextMenuStrip = BuildMenu();
             _popup?.UpdateStrings(_strings);
         }
+        if (previous.Theme != _settings.Theme || previous.GlassEffect != _settings.GlassEffect)
+            ApplyTheme();
         // The interval delegate reads _settings on the next tick; a shorter interval takes
         // effect immediately by cutting the current wait short.
         if (previous.RefreshSeconds > _settings.RefreshSeconds)
