@@ -3,7 +3,7 @@ title: "Lim'it v0.3 - Panel yeniden tasarımı"
 created: 2026-09-20
 modified: 2026-09-20
 type: spec
-status: approved
+status: implemented
 tags: [proje, csharp, wpf, kota, claude, codex, ui]
 ---
 

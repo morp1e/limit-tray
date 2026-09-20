@@ -74,8 +74,8 @@
                     <Polyline Points="{Binding SparklinePoints}" Stroke="{Binding Colour}"
                               StrokeThickness="1.5" StrokeLineJoin="Round" />
                 </Canvas>
-                <TextBlock Text="{Binding BurnRateText}" Margin="56,2,38,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
+                <TextBlock Text="{Binding BurnRateText}" Margin="56,2,0,0" FontSize="11"
+                           TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Visibility="{Binding BurnRateText, Converter={StaticResource NullableVisibility}}" />
             </StackPanel>
         </DataTemplate>

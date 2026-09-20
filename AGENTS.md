@@ -43,11 +43,25 @@ This file is context for AI coding agents working on this repository. If you are
 - **Never bend production behaviour to make a test pass.** If a test cannot pass against
   correct code, the test is wrong: stop and say so rather than changing the code under it.
   This happened during development and cost a review cycle.
-- **Verify the screen with a DPI-aware capture.** This display runs at 150%. A capture
+- **Verify the screen with a DPI-aware capture.** This display ran at 150% when this was
+  written and at 100% on 2026-09-20; measure, do not assume. A capture
   tool that has not called `SetProcessDPIAware` reads a 480x930 window as 320x620 and
   silently crops the right third, which looks exactly like a rendering bug and cost a long
   detour hunting a percentage that was never missing. Measure the artefact, then check the
   instrument.
+- **Colour is decided in `Theme.ColourFor` and nowhere else.** No hex value for a quota
+  colour in XAML or code-behind; the popup, the tray icon and the settings preview all ask
+  Core. A lighter tint or a glow may be derived in `Brushes.cs`, but from the colour Core
+  chose.
+- **The tray icon draws `TrayIconModel` and decides nothing itself.** A null bar in the model
+  is drawn as the question mark, never as an empty gauge, because empty reads as zero.
+- **Run the app before committing any XAML change.** A `Run` or `TextBox` bound to a
+  read-only view-model property defaults to a two-way binding and throws at first layout;
+  the build and all 217 tests were green while the app crashed on start. Bind with
+  `Mode=OneWay` and look at the window.
+- **Visual work follows the mockup, not the brief.** In v0.3 the pages built from a text
+  brief compiled and passed, and did not look like the design that had been chosen. The
+  agent that saw the mockup does the visual layer and checks it on screen.
 - **A green test suite is not proof the app works.** The unit tests here talk to fakes, and a
   fake process has no encoding, no real stdio and no clock. Run the app against the real
   providers before claiming a change works. The two worst defects in this project's history,

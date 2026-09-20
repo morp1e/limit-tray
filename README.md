@@ -20,7 +20,10 @@ Both agents track a 5-hour and a 7-day window, but each hides that number inside
 interactive session: `/usage` in Claude Code, `/status` in Codex. Lim'it puts both in one
 place, so "how much do I have left?" does not cost you a session.
 
-![Lim'it popup showing Claude and Codex usage](docs/screenshot.png)
+<p align="center">
+  <img src="docs/screenshot.png" alt="Lim'it panel showing Claude and Codex usage" width="360">
+  <img src="docs/screenshot-settings.png" alt="Lim'it settings page" width="360">
+</p>
 
 ## Download
 
@@ -40,7 +43,7 @@ log in again, and it has no settings file to fill in.
 > release ships a `.sha256` file next to the binary if you would rather verify it first:
 >
 > ```powershell
-> Get-FileHash .\limit-tray-v0.2.0-win-x64.exe -Algorithm SHA256
+> Get-FileHash .\limit-tray-v0.3.0-win-x64.exe -Algorithm SHA256
 > ```
 >
 > The binary is built by [GitHub Actions from the tagged commit](.github/workflows/release.yml),
@@ -67,6 +70,19 @@ them: **how fast am I burning through this, and will it last?** From its own obs
 it fits a consumption rate and projects when the window fills. When the window resets
 before that can happen, it says so instead of showing a countdown to an event that will
 never arrive.
+
+**Colour means state, and only state.** Each provider's bars, ring and number wear its
+brand colour while things are fine. At the caution threshold they turn amber, at the
+warning threshold red, and data that has gone stale turns grey. So a glance at the panel,
+or at the tray icon, tells you which provider is the one to worry about before you read a
+single number. The thresholds, the refresh interval, the tray icon style and the theme are
+all yours to change from the gear in the panel, and every change applies the moment you
+make it.
+
+Click a provider's card to expand it: the trend line, the burn rate and the age of the
+reading appear. Hover a card and a small terminal glyph offers to open that agent's CLI in
+a new window. The refresh arrow asks both providers for a reading now, at most once every
+five seconds, because the Claude endpoint is shared with Claude Code itself.
 
 The one thing Lim'it is deliberate about: **an error never looks like `0%`.** If the token is
 missing, the endpoint rate-limits, or an upstream API changes shape, the panel says so in
@@ -115,7 +131,15 @@ than fitted across the reset. The file holds percentages, window lengths and tim
 and nothing else; if it is missing or corrupt the app behaves exactly as it would on a
 first run.
 
-**Notifications.** Crossing 85% raises one balloon per window per fill. Staying above it
+**Settings.** Everything you can change lives on the second page of the panel and in
+`%LOCALAPPDATA%\limit-tray\settings.json`: theme (system, dark, light), language, the
+glass effect, the refresh interval (60, 120 or 300 seconds), the two colour thresholds,
+notifications, the tray icon style (a ring, a number or two bars, one per provider) and
+which window drives it, and start with Windows. The file holds setting values and nothing
+else; a missing or corrupt file means defaults, and a file that cannot be written is
+reported on the settings page rather than by a crash.
+
+**Notifications.** Crossing the warning threshold raises one balloon per window per fill. Staying above it
 is silent, and falling back below it arms the next crossing. A tool that warns every two
 minutes gets muted, and a muted warning is worth nothing.
 
@@ -135,10 +159,11 @@ with them, so:
   type name. There is a test asserting the token cannot leak into error details.
 - Lim'it has no telemetry and no analytics, and makes no network request other than the usage
   endpoint above.
-- The one file it writes is `%LOCALAPPDATA%\limit-tray\history.json`: percentages, window
-  lengths and timestamps. No token, no account identifier, no request or response body, and
-  no error text. Error detail can carry an exception message, so it is deliberately never
-  persisted. Deleting the file loses the trend and nothing else.
+- It writes two files under `%LOCALAPPDATA%\limit-tray\`. `history.json` holds
+  percentages, window lengths and timestamps; `settings.json` holds your settings. No token,
+  no account identifier, no request or response body, and no error text in either. Error
+  detail can carry an exception message, so it is deliberately never persisted. Deleting the
+  files loses the trend and your preferences, and nothing else.
 
 The code is short and the relevant file is
 [`ClaudeCredentialReader.cs`](src/LimitTray.Core/Claude/ClaudeCredentialReader.cs).
@@ -200,8 +225,17 @@ tests and observed behaviour were checked first.
 
 The first round (the collectors, the panel, the health model) was written by OpenAI's Codex,
 task by task. The second round (usage history, burn-rate projection, notifications, the icon)
-was written by Claude. The spec and plan are in [`docs/`](docs/) if you want to see the actual
-process, including the defects that came out of it.
+was written by Claude. The third round, v0.3, was split: Claude wrote the spec and plan,
+Codex wrote the settings model, colour rule, tray icon model and collector changes in
+`LimitTray.Core` and the first cut of the WPF pages, and Claude did the visual work
+(the mockup-matched look, the glass, the settings page polish) and every on-screen check.
+The spec and plan are in [`docs/`](docs/) if you want to see the actual process, including
+the defects that came out of it.
+
+v0.3 added one more defect to that list. With 217 tests green the app crashed at first
+layout: a `Run` bound to a read-only view-model property defaults to a two-way binding,
+which WPF refuses at runtime. No test can see a XAML binding mode. The app was run before
+anything was committed, so the crash cost minutes rather than a release.
 
 Two of those are worth repeating, because between them they are the whole argument for
 looking at the running application rather than trusting a green suite.
