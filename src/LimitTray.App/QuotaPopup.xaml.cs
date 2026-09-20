@@ -32,26 +32,57 @@ public partial class QuotaPopup : Window
         SettingsHost.Content = new SettingsPage { DataContext = _settings };
         SourceInitialized += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
         _app.SettingsChanged += OnSettingsChanged;
-        SizeChanged += (_, _) => PositionNearTray();
+        SizeChanged += (_, e) =>
+        {
+            RootClip.Rect = new Rect(0, 0, e.NewSize.Width - 2, e.NewSize.Height - 2);
+            PositionNearTray();
+        };
     }
 
     public void ApplyBackdrop(bool dark)
     {
-        var applied = _app.Settings.GlassEffect && WindowBackdrop.TryApplyAcrylic(this, dark);
-        if (!applied) WindowBackdrop.Clear(this);
+        WindowBackdrop.ApplyNativeShape(this, dark);
+        PaintGlows(dark);
 
-        if (FindResource("SurfaceBrush") is not SolidColorBrush surface)
-            return;
+        if (FindResource("SurfaceBrush") is not SolidColorBrush surface) return;
 
+        var applied = _app.Settings.GlassEffect
+            && WindowBackdrop.TryApplyAcrylic(this, surface.Color);
         if (!applied)
         {
+            WindowBackdrop.Clear(this);
             RootBorder.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
             return;
         }
 
-        var backdropBrush = surface.Clone();
-        backdropBrush.Opacity = 0.72;
-        RootBorder.Background = backdropBrush;
+        // The blur shows through whatever alpha the surface leaves; 0.78 keeps text
+        // readable over a busy desktop while still reading as glass.
+        var glass = new SolidColorBrush(surface.Color) { Opacity = 0.78 };
+        glass.Freeze();
+        RootBorder.Background = glass;
+    }
+
+    /// <summary>
+    /// The two radial brand glows from the mockup: Claude top-left, Codex bottom-right.
+    /// Colours come from Palette so a brand change is one edit in Core.
+    /// </summary>
+    private void PaintGlows(bool dark)
+    {
+        var strength = dark ? (byte)0x38 : (byte)0x22;
+        GlowTopLeft.Fill = Radial(Palette.ClaudeBrand, strength);
+        GlowBottomRight.Fill = Radial(Palette.CodexBrand, strength);
+    }
+
+    private static RadialGradientBrush Radial(Rgb colour, byte alpha)
+    {
+        var brush = new RadialGradientBrush(
+            LimitTray.App.Brushes.ToMedia(colour, alpha), LimitTray.App.Brushes.ToMedia(colour, 0))
+        {
+            RadiusX = 0.5,
+            RadiusY = 0.5,
+        };
+        brush.Freeze();
+        return brush;
     }
 
     public void Show(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now)

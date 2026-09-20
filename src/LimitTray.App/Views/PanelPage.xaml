@@ -50,11 +50,11 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{Binding Label}"
                                Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center" />
-                    <Border x:Name="BarTrack" Grid.Column="1" Height="6" Margin="4,0,8,0"
+                    <Border x:Name="BarTrack" Grid.Column="1" Height="6" Margin="4,0,10,0"
                             Background="{DynamicResource TrackBrush}" CornerRadius="3"
-                            VerticalAlignment="Center" ClipToBounds="True">
+                            VerticalAlignment="Center">
                         <Border Height="6" HorizontalAlignment="Left" CornerRadius="3"
-                                Background="{Binding Colour}"
+                                Background="{Binding BarBrush}" Effect="{Binding Glow}"
                                 TargetUpdated="OnBarTargetUpdated">
                             <Border.Width>
                                 <MultiBinding Converter="{StaticResource PercentToWidth}"
@@ -66,8 +66,8 @@
                         </Border>
                     </Border>
                     <TextBlock Grid.Column="2" Text="{Binding PercentText}" TextAlignment="Right"
-                               Foreground="{Binding Colour}" Typography.NumeralAlignment="Tabular"
-                               VerticalAlignment="Center" />
+                               Foreground="{Binding PercentBrush}" Typography.NumeralAlignment="Tabular"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
                 </Grid>
                 <Canvas Height="24" Margin="56,4,38,0" ClipToBounds="True"
                         Visibility="{Binding SparklinePoints, Converter={StaticResource NullableVisibility}}">
@@ -81,7 +81,7 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:ProviderCardViewModel}">
-            <Border Margin="0,0,0,10" Padding="12" CornerRadius="14"
+            <Border Margin="0,0,0,10" Padding="14,12" CornerRadius="14"
                     BorderThickness="1" MouseLeftButtonUp="OnCardMouseLeftButtonUp">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -105,15 +105,16 @@
                     </Grid.ColumnDefinitions>
 
                     <Grid Grid.Column="0" Width="52" Height="52" VerticalAlignment="Top">
-                        <Ellipse Width="52" Height="52" Stroke="{DynamicResource TrackBrush}"
-                                 StrokeThickness="4" />
+                        <Ellipse Width="42" Height="42" Stroke="{DynamicResource TrackBrush}"
+                                 StrokeThickness="5" />
                         <Path Data="{Binding RingPercent, Converter={StaticResource PercentToArc},
                                       NotifyOnTargetUpdated=True}"
-                              Stroke="{Binding RingColour}" StrokeThickness="4"
+                              Stroke="{Binding RingColour}" StrokeThickness="5"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Effect="{Binding RingGlow}"
                               TargetUpdated="OnRingTargetUpdated" />
                         <TextBlock Text="{Binding RingPercentText}"
-                                   Foreground="{Binding RingColour}" FontSize="12"
+                                   Foreground="{Binding RingTextBrush}" FontSize="12" FontWeight="Bold"
                                    Typography.NumeralAlignment="Tabular" HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Visibility="{Binding RingPercentText, Converter={StaticResource NullableVisibility}}" />
@@ -174,7 +175,10 @@
         <DockPanel Grid.Row="0" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                 <TextBlock Text="LIM'IT" Foreground="{DynamicResource TextBrush}"
-                           FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+                           FontSize="15" FontWeight="Bold" VerticalAlignment="Center"
+                           Typography.Capitals="AllSmallCaps" />
+                <!-- WPF has no letter-spacing; the small-caps face plus a lighter accent
+                     mark gives the header the same set-apart feel the mockup had. -->
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="{Binding RefreshGlyph}" ToolTip="{Binding RefreshText}"

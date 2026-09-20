@@ -71,14 +71,15 @@ public sealed class ProviderCardViewModel : ObservableObject
             : windows.MaxBy(pair => pair.Window.Percent);
         RingPercent = fullest is null ? 0 : Math.Clamp(fullest.Value.Window.Percent, 0, 100);
         RingPercentText = fullest is null ? null : QuotaFormatter.Percent(fullest.Value.Window.Percent, strings);
-        RingColour = fullest is null
-            ? Brushes.Solid(Theme.ColourFor(snapshot.Provider, QuotaSeverity.Normal, snapshot.Health),
-                Theme.OpacityFor(snapshot.Health))
-            : Brushes.Solid(Theme.ColourFor(
+        var ringRgb = fullest is null
+            ? Theme.ColourFor(snapshot.Provider, QuotaSeverity.Normal, snapshot.Health)
+            : Theme.ColourFor(
                 snapshot.Provider,
                 QuotaFormatter.SeverityFor(fullest.Value.Window.Percent, settings.Thresholds),
-                snapshot.Health),
-                Theme.OpacityFor(snapshot.Health));
+                snapshot.Health);
+        RingColour = Brushes.Solid(ringRgb, Theme.OpacityFor(snapshot.Health));
+        RingTextBrush = Brushes.Solid(Brushes.Lighter(ringRgb), Theme.OpacityFor(snapshot.Health));
+        RingGlow = snapshot.Health == HealthState.Fresh ? Brushes.Glow(ringRgb, 0.45) : null;
 
         ResetShortText = BuildResetShort(windows, now, strings);
         Rows = windows.Select(pair => new WindowRowViewModel(
@@ -92,6 +93,8 @@ public sealed class ProviderCardViewModel : ObservableObject
     public double RingPercent { get; }
     public string? RingPercentText { get; }
     public System.Windows.Media.Brush RingColour { get; }
+    public System.Windows.Media.Brush RingTextBrush { get; }
+    public System.Windows.Media.Effects.Effect? RingGlow { get; }
     public string ResetShortText { get; }
     public IReadOnlyList<WindowRowViewModel> Rows { get; }
     public bool IsStale { get; }

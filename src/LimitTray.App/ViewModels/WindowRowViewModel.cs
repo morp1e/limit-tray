@@ -31,11 +31,16 @@ public sealed class WindowRowViewModel : ObservableObject
         Label = QuotaFormatter.WindowTitle(kind, strings);
         Percent = Math.Clamp(window.Percent, 0, 100);
         PercentText = QuotaFormatter.Percent(window.Percent, strings);
-        Colour = Brushes.Solid(Theme.ColourFor(
+        var rgb = Theme.ColourFor(
             snapshot.Provider,
             QuotaFormatter.SeverityFor(window.Percent, settings.Thresholds),
-            snapshot.Health),
-            Theme.OpacityFor(snapshot.Health));
+            snapshot.Health);
+        var alpha = Theme.OpacityFor(snapshot.Health);
+        Colour = Brushes.Solid(rgb, alpha);
+        BarBrush = Brushes.Gradient(rgb, alpha);
+        PercentBrush = Brushes.Solid(Brushes.Lighter(rgb), alpha);
+        // Stale and error rows are muted; a glow under grey would only be noise.
+        Glow = snapshot.Health == HealthState.Fresh ? Brushes.Glow(rgb) : null;
         ResetText = QuotaFormatter.ResetsIn(window.ResetsAt, now, strings);
 
         var isExpanded = settings.ExpandedProviders.Contains(snapshot.Provider);
@@ -51,6 +56,9 @@ public sealed class WindowRowViewModel : ObservableObject
     public double Percent { get; }
     public string PercentText { get; }
     public System.Windows.Media.Brush Colour { get; }
+    public System.Windows.Media.Brush BarBrush { get; }
+    public System.Windows.Media.Brush PercentBrush { get; }
+    public System.Windows.Media.Effects.Effect? Glow { get; }
     public string ResetText { get; }
     public string? BurnRateText { get; }
     public PointCollection? SparklinePoints { get; }
