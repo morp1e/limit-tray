@@ -43,12 +43,13 @@ public sealed class WindowRowViewModel : ObservableObject
         Glow = snapshot.Health == HealthState.Fresh ? Brushes.Glow(rgb) : null;
         ResetText = QuotaFormatter.ResetsIn(window.ResetsAt, now, strings);
 
-        var isExpanded = settings.ExpandedProviders.Contains(snapshot.Provider);
+        // Computed whether or not the card is expanded: expanding then only flips a
+        // Visibility, so the click cannot rebuild the list and flash the panel.
         var estimate = snapshot.Health == HealthState.Fresh
             ? history.Estimate(snapshot.Provider, kind, now)
             : null;
-        BurnRateText = !isExpanded || estimate is null ? null : QuotaFormatter.BurnRate(estimate, strings);
-        SparklinePoints = isExpanded ? BuildSparkline(history.Samples(snapshot.Provider, kind)) : null;
+        BurnRateText = estimate is null ? null : QuotaFormatter.BurnRate(estimate, strings);
+        SparklinePoints = BuildSparkline(history.Samples(snapshot.Provider, kind));
     }
 
     public WindowKind Kind { get; }

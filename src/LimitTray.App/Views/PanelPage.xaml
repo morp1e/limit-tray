@@ -10,6 +10,7 @@
         <local:NullableToVisibilityConverter x:Key="NullableVisibility" />
         <local:BooleanToVisibilityConverter x:Key="BooleanVisibility" />
         <local:BooleanToOpacityConverter x:Key="BooleanOpacity" />
+        <local:ExpandedAndPresentConverter x:Key="ExpandedAndPresent" />
 
         <Style x:Key="IconButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -69,14 +70,25 @@
                                Foreground="{Binding PercentBrush}" Typography.NumeralAlignment="Tabular"
                                FontWeight="SemiBold" VerticalAlignment="Center" />
                 </Grid>
-                <Canvas Height="24" Margin="56,4,38,0" ClipToBounds="True"
-                        Visibility="{Binding SparklinePoints, Converter={StaticResource NullableVisibility}}">
+                <Canvas Height="24" Margin="56,4,38,0" ClipToBounds="True">
+                    <Canvas.Visibility>
+                        <MultiBinding Converter="{StaticResource ExpandedAndPresent}">
+                            <Binding Path="DataContext.IsExpanded" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                            <Binding Path="SparklinePoints" />
+                        </MultiBinding>
+                    </Canvas.Visibility>
                     <Polyline Points="{Binding SparklinePoints}" Stroke="{Binding Colour}"
                               StrokeThickness="1.5" StrokeLineJoin="Round" />
                 </Canvas>
                 <TextBlock Text="{Binding BurnRateText}" Margin="56,2,0,0" FontSize="11"
-                           TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
-                           Visibility="{Binding BurnRateText, Converter={StaticResource NullableVisibility}}" />
+                           TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}">
+                    <TextBlock.Visibility>
+                        <MultiBinding Converter="{StaticResource ExpandedAndPresent}">
+                            <Binding Path="DataContext.IsExpanded" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                            <Binding Path="BurnRateText" />
+                        </MultiBinding>
+                    </TextBlock.Visibility>
+                </TextBlock>
             </StackPanel>
         </DataTemplate>
 

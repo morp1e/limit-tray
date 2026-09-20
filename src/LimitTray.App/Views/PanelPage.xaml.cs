@@ -65,6 +65,18 @@ public sealed class NullableToVisibilityConverter : IValueConverter
         Binding.DoNothing;
 }
 
+/// <summary>Visible only when the card is expanded and the value exists.</summary>
+public sealed class ExpandedAndPresentConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) =>
+        values.Length == 2 && values[0] is true && values[1] is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 public sealed class BooleanToOpacityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>

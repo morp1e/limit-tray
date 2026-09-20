@@ -31,7 +31,6 @@ public partial class QuotaPopup : Window
         PanelHost.Content = new PanelPage { DataContext = _panel };
         SettingsHost.Content = new SettingsPage { DataContext = _settings };
         SourceInitialized += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
-        _app.SettingsChanged += OnSettingsChanged;
         SizeChanged += (_, e) =>
         {
             RootClip.Rect = new Rect(0, 0, e.NewSize.Width - 2, e.NewSize.Height - 2);
@@ -156,8 +155,6 @@ public partial class QuotaPopup : Window
     }
 
     private void OnDeactivated(object? sender, EventArgs e) => Hide();
-
-    private void OnSettingsChanged(AppSettings settings) => ApplyBackdrop(IsDarkTheme(settings.Theme));
 
     private static bool IsDarkTheme(LimitTray.Core.Settings.ThemeMode mode) => mode switch
     {

@@ -35,6 +35,11 @@ public static class WindowBackdrop
 
         try
         {
+            // Without this the area outside the rounded border is painted black, which
+            // reads as square corners with a stray line running through them.
+            if (HwndSource.FromHwnd(hwnd) is { } source)
+                source.CompositionTarget.BackgroundColor = System.Windows.Media.Colors.Transparent;
+
             var darkValue = dark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, ref darkValue, sizeof(int));
             var round = DwmwcpRound;

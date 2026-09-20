@@ -267,6 +267,17 @@ public partial class App : System.Windows.Application
         _popup?.ApplyBackdrop(dark: !light);
     }
 
+    /// <summary>
+    /// Card expansion is a view state that happens to be persisted. It changes no colour,
+    /// no icon and no text, so it is saved without the redraw ApplySettings does; the
+    /// redraw is what made the click look like the panel closed and reopened.
+    /// </summary>
+    public void RememberExpanded(IReadOnlySet<string> expanded)
+    {
+        _settings = _settings with { ExpandedProviders = expanded };
+        _settingsStore.Save(_settings);
+    }
+
     public void ApplySettings(AppSettings next)
     {
         var previous = _settings;
@@ -287,7 +298,13 @@ public partial class App : System.Windows.Application
         if (previous.RefreshSeconds > _settings.RefreshSeconds)
             foreach (var collector in _collectors) collector.RequestRefresh();
 
-        UpdateTray();
+        // The icon and the panel colours depend on thresholds, tray style/source and
+        // language; nothing else in the settings changes what is drawn there.
+        var redraw = previous.Thresholds != _settings.Thresholds
+            || previous.TrayStyle != _settings.TrayStyle
+            || previous.TraySource != _settings.TraySource
+            || previous.Language != _settings.Language;
+        if (redraw) UpdateTray();
         SettingsChanged?.Invoke(_settings);
     }
 

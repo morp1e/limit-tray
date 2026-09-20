@@ -122,7 +122,7 @@ public sealed class ProviderCardViewModel : ObservableObject
             var expanded = new HashSet<string>(_app.Settings.ExpandedProviders, StringComparer.Ordinal);
             if (value) expanded.Add(Provider);
             else expanded.Remove(Provider);
-            _app.ApplySettings(_app.Settings with { ExpandedProviders = expanded });
+            _app.RememberExpanded(expanded);
         }
     }
 
