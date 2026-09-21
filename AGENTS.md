@@ -66,6 +66,13 @@ This file is context for AI coding agents working on this repository. If you are
   fills a missing `windowDurationMins` with 5 hours / 7 days. The live app-server omits the
   field in some notifications, the value only labels the window and feeds retention, and
   the percentage itself is never guessed. Reviewed 2026-09-20 and kept on purpose.
+- **The popup window never resizes.** It is a fixed 392x700 per-pixel transparent
+  window; the visible panel is the bottom-aligned border inside it. Resizing the HWND
+  on expand/collapse made DWM show the previous frame for a moment (a ghost of the old
+  panel) and moved the popup under the cursor. Do not reintroduce SizeToContent there.
+- **Every UI change is checked with a click sequence, not a single screenshot:** open,
+  expand a card, collapse it, open settings, back, close; capture at 40 ms after each
+  click and again when settled. `tools/UiProbe/Probe-Popup.ps1` does this.
 - **A green test suite is not proof the app works.** The unit tests here talk to fakes, and a
   fake process has no encoding, no real stdio and no clock. Run the app against the real
   providers before claiming a change works. The two worst defects in this project's history,

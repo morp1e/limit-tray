@@ -43,7 +43,7 @@ log in again, and it has no settings file to fill in.
 > release ships a `.sha256` file next to the binary if you would rather verify it first:
 >
 > ```powershell
-> Get-FileHash .\limit-tray-v0.3.3-win-x64.exe -Algorithm SHA256
+> Get-FileHash .\limit-tray-v0.3.4-win-x64.exe -Algorithm SHA256
 > ```
 >
 > The binary is built by [GitHub Actions from the tagged commit](.github/workflows/release.yml),

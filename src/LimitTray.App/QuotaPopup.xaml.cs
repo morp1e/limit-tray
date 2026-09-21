@@ -31,8 +31,10 @@ public partial class QuotaPopup : Window
 
         PanelHost.Content = new PanelPage { DataContext = _panel };
         SettingsHost.Content = new SettingsPage { DataContext = _settings };
-        SourceInitialized += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
-        SizeChanged += (_, _) => PositionNearTray();
+        Loaded += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
+        // The glow layer is clipped to the panel's rounded shape, whatever height it has.
+        Surface.SizeChanged += (_, e) =>
+            RootClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
     }
 
     /// <summary>
@@ -43,7 +45,10 @@ public partial class QuotaPopup : Window
     /// </summary>
     public void ApplyBackdrop(bool dark)
     {
-        WindowBackdrop.ApplyNativeShape(this, dark);
+        // No DWM attributes on this window. It is a per-pixel transparent layered
+        // window that draws its own corners and shadow; giving DWM a corner preference
+        // or border colour on top of that made it paint a faint, rounded backdrop over
+        // the whole 392x700 rectangle on one display (seen 2026-09-21, not on another).
         PaintGlows(dark);
     }
 
@@ -78,14 +83,11 @@ public partial class QuotaPopup : Window
 
         if (opening)
         {
-            Left = -32000;
-            Top = -32000;
+            // Fixed size, so the window is placed before it is shown; no off-screen pass.
+            PositionNearTray();
             base.Show();
+            Activate();
         }
-
-        UpdateLayout();
-        PositionNearTray();
-        if (opening) Activate();
     }
 
     public void Update(IReadOnlyList<QuotaSnapshot> snapshots, DateTimeOffset now) =>
@@ -102,14 +104,11 @@ public partial class QuotaPopup : Window
         var opening = !IsVisible;
         if (opening)
         {
-            Left = -32000;
-            Top = -32000;
+            PositionNearTray();
             base.Show();
         }
 
         SlideTo(showSettings: true);
-        UpdateLayout();
-        PositionNearTray();
         if (opening) Activate();
     }
 
@@ -155,7 +154,7 @@ public partial class QuotaPopup : Window
     /// </summary>
     private void PositionNearTray()
     {
-        var height = ActualHeight > 0 ? ActualHeight : DesiredSize.Height;
+        var height = Height;
         var screen = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position);
         var work = screen.WorkingArea;
         var dpi = VisualTreeHelper.GetDpi(this);

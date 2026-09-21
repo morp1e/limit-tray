@@ -1,35 +1,40 @@
 <Window x:Class="LimitTray.App.QuotaPopup"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Lim'it" Width="360" SizeToContent="Height"
+        Title="Lim'it" Width="392" Height="700"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
-        Topmost="True" Background="{DynamicResource SurfaceBrush}"
+        Topmost="True" AllowsTransparency="True" Background="Transparent"
         FontFamily="{StaticResource AppFont}" UseLayoutRounding="True"
         SnapsToDevicePixels="True" Deactivated="OnDeactivated">
     <!--
-        No WindowChrome: with GlassFrameThickness it drew a light DWM frame and squared the
-        corners. Rounding and the missing border line come from DWM attributes set in
-        WindowBackdrop, so this tree only has to paint the surface and the two brand glows
-        the mockup had.
+        The window never changes size. It is a fixed, per-pixel transparent canvas tall
+        enough for the settings page and both cards expanded; the visible panel is the
+        bottom-aligned border inside it and only that grows or shrinks. Resizing the
+        HWND on every expand left DWM showing the previous frame for a moment (a ghost
+        of the old panel) and forced the popup to jump under the cursor; a window that
+        stays put has neither problem, and it draws its own corners and shadow.
     -->
-    <!--
-        The surface is painted edge to edge with square corners. Windows 11 rounds the
-        window itself (DWM corner preference, about 8 px); painting our own 12 px radius
-        underneath left a black crescent between the two curves. Windows 10 shows the
-        square corners as they are.
-    -->
-    <Border x:Name="RootBorder" Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource CardBorderBrush}"
-            BorderThickness="1" CornerRadius="0">
-        <Grid ClipToBounds="True">
-            <!-- Brand glows: painted from Palette in code-behind, never hex in XAML. -->
-            <Ellipse x:Name="GlowTopLeft" Width="420" Height="300" IsHitTestVisible="False"
-                     HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-190,-160,0,0" />
-            <Ellipse x:Name="GlowBottomRight" Width="380" Height="280" IsHitTestVisible="False"
-                     HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-170,-150" />
-            <ContentPresenter x:Name="PanelHost" />
-            <ContentPresenter x:Name="SettingsHost" Visibility="Collapsed"
-                              RenderTransformOrigin="0.5,0.5" />
-        </Grid>
-    </Border>
+    <Grid Margin="16,16,16,16">
+        <Border x:Name="RootBorder" VerticalAlignment="Bottom"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1" CornerRadius="12">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Opacity="0.45" />
+            </Border.Effect>
+            <Grid x:Name="Surface" ClipToBounds="True">
+                <Grid.Clip>
+                    <RectangleGeometry x:Name="RootClip" RadiusX="11" RadiusY="11" />
+                </Grid.Clip>
+                <!-- Brand glows: painted from Palette in code-behind, never hex in XAML. -->
+                <Ellipse x:Name="GlowTopLeft" Width="420" Height="300" IsHitTestVisible="False"
+                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-190,-160,0,0" />
+                <Ellipse x:Name="GlowBottomRight" Width="380" Height="280" IsHitTestVisible="False"
+                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-170,-150" />
+                <ContentPresenter x:Name="PanelHost" />
+                <ContentPresenter x:Name="SettingsHost" Visibility="Collapsed"
+                                  RenderTransformOrigin="0.5,0.5" />
+            </Grid>
+        </Border>
+    </Grid>
 </Window>
