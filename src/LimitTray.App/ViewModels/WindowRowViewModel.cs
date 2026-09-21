@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
@@ -11,12 +10,31 @@ using LimitTray.Core.Settings;
 
 namespace LimitTray.App.ViewModels;
 
+/// <summary>
+/// One quota window inside a provider card. Like the card, the instance is kept and
+/// refreshed in place: replacing the row list on every reading regenerated the item
+/// containers, and while a new container was still unattached its expanded-content
+/// visibility resolved to collapsed for one layout pass, so the whole popup shrank and
+/// grew with every Codex notification.
+/// </summary>
 public sealed class WindowRowViewModel : ObservableObject
 {
     private const int MinimumSparklineSamples = 5;
     private const double MinimumSparklineRange = 1.0;
     private const double SparklineWidth = 252;
     private const double SparklineHeight = 24;
+
+    private string _label = string.Empty;
+    private double _percent;
+    private string _percentText = string.Empty;
+    private Brush _colour = System.Windows.Media.Brushes.Transparent;
+    private Brush _barBrush = System.Windows.Media.Brushes.Transparent;
+    private Brush _percentBrush = System.Windows.Media.Brushes.Transparent;
+    private System.Windows.Media.Effects.Effect? _glow;
+    private string _resetText = string.Empty;
+    private string? _burnRateText;
+    private PointCollection? _sparklinePoints;
+    private bool _isExpanded;
 
     public WindowRowViewModel(
         WindowKind kind,
@@ -25,12 +43,41 @@ public sealed class WindowRowViewModel : ObservableObject
         UsageHistory history,
         AppSettings settings,
         Strings strings,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool isExpanded)
     {
         Kind = kind;
-        Label = QuotaFormatter.WindowTitle(kind, strings);
+        _isExpanded = isExpanded;
+        Refresh(window, snapshot, history, settings, strings, now);
+    }
+
+    public WindowKind Kind { get; }
+    public string Label { get => _label; private set => Set(ref _label, value); }
+    public double Percent { get => _percent; private set => Set(ref _percent, value); }
+    public string PercentText { get => _percentText; private set => Set(ref _percentText, value); }
+    public Brush Colour { get => _colour; private set => Set(ref _colour, value); }
+    public Brush BarBrush { get => _barBrush; private set => Set(ref _barBrush, value); }
+    public Brush PercentBrush { get => _percentBrush; private set => Set(ref _percentBrush, value); }
+    public System.Windows.Media.Effects.Effect? Glow { get => _glow; private set => Set(ref _glow, value); }
+    public string ResetText { get => _resetText; private set => Set(ref _resetText, value); }
+    public string? BurnRateText { get => _burnRateText; private set => Set(ref _burnRateText, value); }
+    public PointCollection? SparklinePoints { get => _sparklinePoints; private set => Set(ref _sparklinePoints, value); }
+
+    /// <summary>Mirrors the owning card; the view binds here rather than walking up the tree.</summary>
+    public bool IsExpanded { get => _isExpanded; set => Set(ref _isExpanded, value); }
+
+    public void Refresh(
+        QuotaWindow window,
+        QuotaSnapshot snapshot,
+        UsageHistory history,
+        AppSettings settings,
+        Strings strings,
+        DateTimeOffset now)
+    {
+        Label = QuotaFormatter.WindowTitle(Kind, strings);
         Percent = Math.Clamp(window.Percent, 0, 100);
         PercentText = QuotaFormatter.Percent(window.Percent, strings);
+
         var rgb = Theme.ColourFor(
             snapshot.Provider,
             QuotaFormatter.SeverityFor(window.Percent, settings.Thresholds),
@@ -43,26 +90,12 @@ public sealed class WindowRowViewModel : ObservableObject
         Glow = snapshot.Health == HealthState.Fresh ? Brushes.Glow(rgb) : null;
         ResetText = QuotaFormatter.ResetsIn(window.ResetsAt, now, strings);
 
-        // Computed whether or not the card is expanded: expanding then only flips a
-        // Visibility, so the click cannot rebuild the list and flash the panel.
         var estimate = snapshot.Health == HealthState.Fresh
-            ? history.Estimate(snapshot.Provider, kind, now)
+            ? history.Estimate(snapshot.Provider, Kind, now)
             : null;
         BurnRateText = estimate is null ? null : QuotaFormatter.BurnRate(estimate, strings);
-        SparklinePoints = BuildSparkline(history.Samples(snapshot.Provider, kind));
+        SparklinePoints = BuildSparkline(history.Samples(snapshot.Provider, Kind));
     }
-
-    public WindowKind Kind { get; }
-    public string Label { get; }
-    public double Percent { get; }
-    public string PercentText { get; }
-    public System.Windows.Media.Brush Colour { get; }
-    public System.Windows.Media.Brush BarBrush { get; }
-    public System.Windows.Media.Brush PercentBrush { get; }
-    public System.Windows.Media.Effects.Effect? Glow { get; }
-    public string ResetText { get; }
-    public string? BurnRateText { get; }
-    public PointCollection? SparklinePoints { get; }
 
     private static PointCollection? BuildSparkline(IReadOnlyList<UsageSample> samples)
     {
@@ -84,6 +117,7 @@ public sealed class WindowRowViewModel : ObservableObject
             points.Add(new Point(x, y));
         }
 
+        points.Freeze();
         return points;
     }
 }

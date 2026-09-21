@@ -50,6 +50,9 @@ public sealed class ProviderCardViewModel : ObservableObject
     private bool _isExpanded;
     private string? _terminalError;
     private int _terminalErrorGeneration;
+    private QuotaSnapshot? _lastSnapshot;
+    private QuotaThresholds? _lastThresholds;
+    private readonly List<WindowRowViewModel> _rowList = new();
 
     public ProviderCardViewModel(
         QuotaSnapshot snapshot,
@@ -101,6 +104,7 @@ public sealed class ProviderCardViewModel : ObservableObject
         set
         {
             if (!Set(ref _isExpanded, value)) return;
+            foreach (var row in _rowList) row.IsExpanded = value;
 
             var expanded = new HashSet<string>(_app.Settings.ExpandedProviders, StringComparer.Ordinal);
             if (value) expanded.Add(Provider);
@@ -109,28 +113,33 @@ public sealed class ProviderCardViewModel : ObservableObject
         }
     }
 
-    /// <summary>Applies a new reading to the existing card.</summary>
+    /// <summary>
+    /// Applies a new reading to the existing card. An unchanged reading only advances the
+    /// age texts: nothing else can have changed, and rebuilding brushes and rows for it
+    /// would restart the bar animations on every tick.
+    /// </summary>
     public void Refresh(QuotaSnapshot snapshot, AppSettings settings, Strings strings, DateTimeOffset now)
     {
+        var sameReading = snapshot == _lastSnapshot && ReferenceEquals(strings, _strings)
+            && settings.Thresholds == _lastThresholds;
         _strings = strings;
+        _lastSnapshot = snapshot;
+        _lastThresholds = settings.Thresholds;
         var fresh = snapshot.Health == HealthState.Fresh;
+
+        if (sameReading)
+        {
+            RefreshAges(snapshot, strings, now);
+            return;
+        }
+
         var alpha = Theme.OpacityFor(snapshot.Health);
 
         Title = QuotaFormatter.ProviderTitle(snapshot.Provider, strings);
         HasData = snapshot.Session is not null || snapshot.Weekly is not null;
         IsDimmed = !fresh;
         HealthText = fresh ? null : QuotaFormatter.HealthText(snapshot, strings);
-        StaleBadgeText = snapshot.Health == HealthState.Stale
-            ? string.Format(CultureInfo.InvariantCulture, strings.StaleBadge,
-                QuotaFormatter.Age(snapshot.FetchedAt, now, strings))
-            : null;
-
-        // "Updated just now" already carries its own verb; wrapping it in "Last updated ..."
-        // read as a stutter on screen.
-        var age = QuotaFormatter.Age(snapshot.FetchedAt, now, strings);
-        LastUpdatedText = age == strings.UpdatedNow
-            ? age
-            : string.Format(CultureInfo.InvariantCulture, strings.LastUpdated, age);
+        RefreshAges(snapshot, strings, now);
 
         var windows = Windows(snapshot).ToList();
         var fullest = windows.Count == 0
@@ -153,11 +162,51 @@ public sealed class ProviderCardViewModel : ObservableObject
         RingTextBrush = Brushes.Solid(Brushes.Lighter(ringRgb), alpha);
         RingGlow = fresh ? Brushes.Glow(ringRgb, 0.45) : null;
 
-        ResetShortText = BuildResetShort(windows, now, strings);
-        Rows = windows.Select(pair => new WindowRowViewModel(
-            pair.Kind, pair.Window, snapshot, _history, settings, strings, now)).ToList();
+        RefreshRows(windows, snapshot, settings, strings, now);
 
         RaisePropertyChanged(nameof(OpenTerminalText));
+    }
+
+    /// <summary>Everything that changes with the clock alone.</summary>
+    private void RefreshAges(QuotaSnapshot snapshot, Strings strings, DateTimeOffset now)
+    {
+        ResetShortText = BuildResetShort(Windows(snapshot).ToList(), now, strings);
+        StaleBadgeText = snapshot.Health == HealthState.Stale
+            ? string.Format(CultureInfo.InvariantCulture, strings.StaleBadge,
+                QuotaFormatter.Age(snapshot.FetchedAt, now, strings))
+            : null;
+
+        // "Updated just now" already carries its own verb; wrapping it in "Last updated ..."
+        // read as a stutter on screen.
+        var age = QuotaFormatter.Age(snapshot.FetchedAt, now, strings);
+        LastUpdatedText = age == strings.UpdatedNow
+            ? age
+            : string.Format(CultureInfo.InvariantCulture, strings.LastUpdated, age);
+    }
+
+    /// <summary>
+    /// Rows are matched by window kind and refreshed; the list object is replaced only
+    /// when the set of windows changes, which keeps the item containers alive.
+    /// </summary>
+    private void RefreshRows(
+        IReadOnlyList<(WindowKind Kind, QuotaWindow Window)> windows,
+        QuotaSnapshot snapshot, AppSettings settings, Strings strings, DateTimeOffset now)
+    {
+        var sameShape = _rowList.Count == windows.Count
+            && _rowList.Zip(windows).All(pair => pair.First.Kind == pair.Second.Kind);
+
+        if (sameShape)
+        {
+            foreach (var (row, pair) in _rowList.Zip(windows))
+                row.Refresh(pair.Window, snapshot, _history, settings, strings, now);
+            return;
+        }
+
+        _rowList.Clear();
+        foreach (var pair in windows)
+            _rowList.Add(new WindowRowViewModel(
+                pair.Kind, pair.Window, snapshot, _history, settings, strings, now, _isExpanded));
+        Rows = _rowList.ToList();
     }
 
     private void OpenTerminal()

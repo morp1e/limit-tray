@@ -72,8 +72,11 @@
                 </Grid>
                 <Canvas Height="24" Margin="56,4,38,0" ClipToBounds="True">
                     <Canvas.Visibility>
+                        <!-- Bound to the row's own IsExpanded: an ancestor lookup resolved to
+                             collapsed while a fresh container was still unattached, and that
+                             one layout pass made the whole popup jump on every update. -->
                         <MultiBinding Converter="{StaticResource ExpandedAndPresent}">
-                            <Binding Path="DataContext.IsExpanded" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                            <Binding Path="IsExpanded" />
                             <Binding Path="SparklinePoints" />
                         </MultiBinding>
                     </Canvas.Visibility>
@@ -84,7 +87,7 @@
                            TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}">
                     <TextBlock.Visibility>
                         <MultiBinding Converter="{StaticResource ExpandedAndPresent}">
-                            <Binding Path="DataContext.IsExpanded" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                            <Binding Path="IsExpanded" />
                             <Binding Path="BurnRateText" />
                         </MultiBinding>
                     </TextBlock.Visibility>
