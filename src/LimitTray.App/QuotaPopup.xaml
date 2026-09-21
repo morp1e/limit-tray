@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Lim'it" Width="360" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
-        Topmost="True" Background="Transparent"
+        Topmost="True" Background="{DynamicResource SurfaceBrush}"
         FontFamily="{StaticResource AppFont}" UseLayoutRounding="True"
         SnapsToDevicePixels="True" Deactivated="OnDeactivated">
     <!--
@@ -12,13 +12,16 @@
         WindowBackdrop, so this tree only has to paint the surface and the two brand glows
         the mockup had.
     -->
+    <!--
+        The surface is painted edge to edge with square corners. Windows 11 rounds the
+        window itself (DWM corner preference, about 8 px); painting our own 12 px radius
+        underneath left a black crescent between the two curves. Windows 10 shows the
+        square corners as they are.
+    -->
     <Border x:Name="RootBorder" Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource CardBorderBrush}"
-            BorderThickness="1" CornerRadius="12">
+            BorderThickness="1" CornerRadius="0">
         <Grid ClipToBounds="True">
-            <Grid.Clip>
-                <RectangleGeometry x:Name="RootClip" RadiusX="12" RadiusY="12" />
-            </Grid.Clip>
             <!-- Brand glows: painted from Palette in code-behind, never hex in XAML. -->
             <Ellipse x:Name="GlowTopLeft" Width="420" Height="300" IsHitTestVisible="False"
                      HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-190,-160,0,0" />

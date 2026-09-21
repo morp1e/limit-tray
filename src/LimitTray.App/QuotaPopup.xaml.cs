@@ -32,11 +32,7 @@ public partial class QuotaPopup : Window
         PanelHost.Content = new PanelPage { DataContext = _panel };
         SettingsHost.Content = new SettingsPage { DataContext = _settings };
         SourceInitialized += (_, _) => ApplyBackdrop(IsDarkTheme(_app.Settings.Theme));
-        SizeChanged += (_, e) =>
-        {
-            RootClip.Rect = new Rect(0, 0, e.NewSize.Width - 2, e.NewSize.Height - 2);
-            PositionNearTray();
-        };
+        SizeChanged += (_, _) => PositionNearTray();
     }
 
     /// <summary>
@@ -49,14 +45,6 @@ public partial class QuotaPopup : Window
     {
         WindowBackdrop.ApplyNativeShape(this, dark);
         PaintGlows(dark);
-        // Windows 10 has no DWM corner rounding; a rounded border inside a square window
-        // would show black corners, so the border follows the window there.
-        if (!WindowBackdrop.IsWindows11)
-        {
-            RootBorder.CornerRadius = new CornerRadius(0);
-            RootClip.RadiusX = 0;
-            RootClip.RadiusY = 0;
-        }
     }
 
     /// <summary>
