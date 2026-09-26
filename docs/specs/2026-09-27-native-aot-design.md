@@ -206,8 +206,9 @@ Kalıcı `codex app-server` oturumu kalkar. Yerine iki kaynak:
 
 **2. Tek atımlık app-server okuması (`CodexServerReader`).**
 
-- Başlat → `initialize` → `initialized` → `account/rateLimits/read` → yanıt → stdin kapat →
-  süreç çıkar (5 sn içinde çıkmazsa öldürülür). Sert zaman aşımı 20 sn (ölçülen 5-13 sn).
+- Başlat → `initialize` → `initialized` → `account/rateLimits/read` → yanıt → süreç ağacı
+  sonlandırılır (mevcut `StdioJsonRpcProcess.Dispose`, `Kill(entireProcessTree: true)`;
+  Codex'in yan süreçleri de kapanır). Sert zaman aşımı 20 sn (ölçülen 5-13 sn).
 - stdin BOM'suz UTF-8 (v0.1'deki BOM kusurunun regresyon testi korunur).
 - Ölçüm (2026-09-27, 3 koşum): okuma başına 125-172 ms CPU, 41-46 MB tepe özel bellek.
 
