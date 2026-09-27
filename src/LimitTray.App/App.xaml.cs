@@ -192,16 +192,13 @@ public partial class App : System.Windows.Application
     private IQuotaCollector BuildCodexCollector()
     {
         var binary = CodexBinaryLocator.LocateDefault();
-
-        return new CodexCollector(
+        var reader = new CodexServerReader(
             () => binary is null
                 ? throw new InvalidOperationException("codex.exe bulunamadi")
                 : new StdioJsonRpcProcess(binary, "app-server"),
-            () => DateTimeOffset.Now,
-            Task.Delay,
-            () => CodexRolloutReader.ReadLatest(
-                CodexRolloutReader.DefaultSessionsRoot, DateTimeOffset.Now),
-            () => TimeSpan.FromSeconds(_settings.RefreshSeconds));
+            () => DateTimeOffset.Now);
+        var tail = new CodexRolloutTail(CodexRolloutTail.DefaultSessionsRoot, () => DateTimeOffset.Now);
+        return new CodexCollector(reader.ReadOnceAsync, tail.Poll, () => DateTimeOffset.Now, Task.Delay);
     }
 
     /// <summary>How long a collector waits after an unexpected fault before it is watched again.</summary>

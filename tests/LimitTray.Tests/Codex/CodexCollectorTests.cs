@@ -1,276 +1,166 @@
 using LimitTray.Core.Codex;
 using LimitTray.Core.Model;
-using LimitTray.Core.Process;
-using Xunit;
 
 namespace LimitTray.Tests.Codex;
 
 public class CodexCollectorTests
 {
-    private static readonly DateTimeOffset Now =
-        new(2026, 9, 3, 20, 0, 0, TimeSpan.Zero);
-
-    private sealed class FakeProcess : IJsonRpcProcess
+    private sealed class Harness
     {
-        private readonly string[] _lines;
-        private readonly bool _failStart;
-        private readonly bool _blockAfterLines;
-        public TaskCompletionSource<bool> InitializedSignal { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public List<string> Sent { get; } = new();
-
-        public FakeProcess(string[] lines, bool failStart = false, bool blockAfterLines = false)
-        {
-            _lines = lines;
-            _failStart = failStart;
-            _blockAfterLines = blockAfterLines;
-        }
-
-        public Task StartAsync(CancellationToken ct) =>
-            _failStart
-                ? Task.FromException(new InvalidOperationException("baslatilamadi"))
-                : Task.CompletedTask;
-
-        public Task SendAsync(string jsonLine, CancellationToken ct)
-        {
-            Sent.Add(jsonLine);
-            if (jsonLine.Contains("\"initialized\"", StringComparison.Ordinal))
-                InitializedSignal.TrySetResult(true);
-            return Task.CompletedTask;
-        }
-
-        public async IAsyncEnumerable<string> ReadLines(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-        {
-            foreach (var line in _lines)
-            {
-                ct.ThrowIfCancellationRequested();
-                yield return line;
-                await Task.Yield();
-            }
-
-            if (_blockAfterLines)
-                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
-        }
-
-        public void Dispose() { }
-    }
-
-    private sealed class OpenStreamProcess : IJsonRpcProcess
-    {
-        private readonly TaskCompletionSource<bool> _secondRead =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int _readCount;
-
-        public List<string> Sent { get; } = new();
-
-        public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
-
-        public Task SendAsync(string jsonLine, CancellationToken ct)
-        {
-            Sent.Add(jsonLine);
-            if (jsonLine.Contains("account/rateLimits/read", StringComparison.Ordinal) &&
-                Interlocked.Increment(ref _readCount) >= 2)
-                _secondRead.TrySetResult(true);
-            return Task.CompletedTask;
-        }
-
-        public async IAsyncEnumerable<string> ReadLines(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-        {
-            yield return InitLine;
-            await _secondRead.Task.WaitAsync(ct);
-            yield return ReadLine;
-        }
-
-        public void Dispose() { }
-    }
-
-    private const string InitLine = """{"id":1,"result":{"userAgent":"x"}}""";
-    private const string ReadLine = """
-    {"id":2,"result":{"rateLimits":{"primary":{"usedPercent":0,"windowDurationMins":300,"resetsAt":1788478826},"secondary":{"usedPercent":36,"windowDurationMins":10080,"resetsAt":1788817184}}}}
-    """;
-    private const string UpdatedLine = """
-    {"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":8,"windowDurationMins":300,"resetsAt":1788478826}}}}
-    """;
-
-    private static async Task<List<QuotaSnapshot>> Take(CodexCollector collector, int count)
-    {
-        var result = new List<QuotaSnapshot>();
-        using var cts = new CancellationTokenSource();
-        try
-        {
-            await foreach (var snap in collector.Watch(cts.Token))
-            {
-                result.Add(snap);
-                if (result.Count >= count) { await cts.CancelAsync(); break; }
-            }
-        }
-        catch (OperationCanceledException) { }
-        return result;
-    }
-
-    [Fact]
-    public async Task Watch_ReadResponse_YieldsFreshSnapshot()
-    {
-        var process = new FakeProcess(new[] { InitLine, ReadLine });
-        var collector = new CodexCollector(() => process, () => Now, (_, _) => Task.CompletedTask, () => null);
-
-        var snaps = await Take(collector, 1);
-
-        Assert.Equal(HealthState.Fresh, snaps[0].Health);
-        Assert.Equal(0.0, snaps[0].Session!.Percent);
-        Assert.Equal(36.0, snaps[0].Weekly!.Percent);
-    }
-
-    [Fact]
-    public async Task Watch_SendsInitializeThenRead()
-    {
-        var process = new FakeProcess(new[] { InitLine, ReadLine });
-        var collector = new CodexCollector(() => process, () => Now, (_, _) => Task.CompletedTask, () => null);
-
-        await Take(collector, 1);
-
-        Assert.Contains(process.Sent, s => s.Contains("\"initialize\""));
-        Assert.Contains(process.Sent, s => s.Contains("account/rateLimits/read"));
-        var initIndex = process.Sent.FindIndex(s => s.Contains("\"initialize\""));
-        var readIndex = process.Sent.FindIndex(s => s.Contains("rateLimits/read"));
-        Assert.True(initIndex < readIndex);
-    }
-
-    [Fact]
-    public async Task Watch_PeriodicallyResendsRead_SoPushOnlyDataDoesNotGoStale()
-    {
-        var process = new OpenStreamProcess();
-        var delayCalls = 0;
-        var never = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var collector = new CodexCollector(
-            () => process,
+        public DateTimeOffset Now = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        public readonly List<TimeSpan> Delays = new();
+        public readonly Queue<QuotaSnapshot?> Rollout = new();
+        public readonly Queue<QuotaSnapshot> Server = new();
+        public int ServerReads, RolloutPolls;
+        public CodexCollector Build() => new(
+            _ => { ServerReads++; return Task.FromResult(Server.Count > 0 ? Server.Dequeue() : Broken()); },
+            () => { RolloutPolls++; return Rollout.Count > 0 ? Rollout.Dequeue() : null; },
             () => Now,
-            (_, ct) => Interlocked.Increment(ref delayCalls) == 1
-                ? Task.CompletedTask
-                : never.Task.WaitAsync(ct),
-            () => null);
+            (d, ct) => { ct.ThrowIfCancellationRequested(); Delays.Add(d); Now += d; return Task.CompletedTask; });
+        public QuotaSnapshot Fresh(double s, double w, DateTimeOffset at, DateTimeOffset? sessionReset = null) =>
+            new("codex", new QuotaWindow(s, sessionReset ?? at.AddHours(5), TimeSpan.FromHours(5)),
+                new QuotaWindow(w, at.AddDays(7), TimeSpan.FromDays(7)), HealthState.Fresh, at, null);
+        public QuotaSnapshot Broken() =>
+            QuotaSnapshot.Unhealthy("codex", HealthState.ProtocolBroken, Now, "app-server zaman asimi");
+    }
 
-        await Take(collector, 1);
-
-        Assert.True(process.Sent.Count(s => s.Contains("account/rateLimits/read")) > 1);
+    private static async Task<List<QuotaSnapshot>> Run(CodexCollector c, int take)
+    {
+        var got = new List<QuotaSnapshot>();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await foreach (var s in c.Watch(cts.Token))
+        {
+            got.Add(s);
+            if (got.Count == take) break;
+        }
+        return got;
     }
 
     [Fact]
-    public async Task Watch_UpdatedNotification_YieldsNewSnapshot()
+    public async Task Start_PollsRolloutAndReadsServer_BeforeFirstWait()
     {
-        var process = new FakeProcess(new[] { InitLine, ReadLine, UpdatedLine });
-        var collector = new CodexCollector(() => process, () => Now, (_, _) => Task.CompletedTask, () => null);
+        var h = new Harness();
+        h.Server.Enqueue(h.Fresh(10, 20, h.Now));
+        var got = await Run(h.Build(), 1);
 
-        var snaps = await Take(collector, 2);
-
-        Assert.Equal(0.0, snaps[0].Session!.Percent);
-        Assert.Equal(8.0, snaps[1].Session!.Percent);
+        Assert.Equal(1, h.RolloutPolls);
+        Assert.Equal(1, h.ServerReads);
+        Assert.Empty(h.Delays);
+        Assert.Equal(10, got[0].Session!.Percent);
     }
 
     [Fact]
-    public async Task Watch_UnrelatedLines_AreIgnored()
+    public async Task Server_IsReadEveryTenMinutes_RolloutEveryThirtySeconds()
     {
-        var noise = """{"method":"remoteControl/status/changed","params":{"status":"disabled"}}""";
-        var process = new FakeProcess(new[] { InitLine, noise, ReadLine });
-        var collector = new CodexCollector(() => process, () => Now, (_, _) => Task.CompletedTask, () => null);
+        var h = new Harness();
+        for (var i = 0; i < 3; i++) h.Server.Enqueue(h.Fresh(10 + i, 20, h.Now.AddMinutes(10 * i)));
+        await Run(h.Build(), 3);
 
-        var snaps = await Take(collector, 1);
-
-        Assert.Equal(HealthState.Fresh, snaps[0].Health);
-        Assert.Equal(0.0, snaps[0].Session!.Percent);
+        Assert.Equal(3, h.ServerReads);
+        Assert.Equal(41, h.RolloutPolls);                       // t=0, then every 30 s for 20 min
+        Assert.All(h.Delays, d => Assert.True(d <= TimeSpan.FromSeconds(30)));
     }
 
     [Fact]
-    public async Task Watch_StartFailsThreeTimes_FallsBackToRolloutFile()
+    public async Task OlderReading_IsNotEmitted_NewerIs()
     {
-        var fallback = new QuotaSnapshot(
-            "codex", new QuotaWindow(11.0, null, TimeSpan.FromHours(5)), null,
-            HealthState.Stale, Now, "dosyadan");
-        var attempts = 0;
+        var h = new Harness();
+        h.Rollout.Enqueue(h.Fresh(30, 30, h.Now));              // newest
+        h.Server.Enqueue(h.Fresh(10, 10, h.Now.AddMinutes(-5)));// older, must be dropped
+        h.Rollout.Enqueue(h.Fresh(31, 31, h.Now.AddSeconds(30)));
+        var got = await Run(h.Build(), 2);
 
-        // The attempt count is measured when the fallback is REQUESTED. Reading
-        // it at the end would race: RunLoop continues in the background and
-        // cancellation does not take effect immediately, so the final count may
-        // exceed three. What matters is that the fallback was requested on the
-        // exact third failure.
-        var attemptsWhenFallbackRequested = 0;
+        Assert.Equal(new[] { 30.0, 31.0 }, got.Select(s => s.Session!.Percent));
+    }
 
+    [Fact]
+    public async Task PartialReading_KeepsTheOtherWindow()
+    {
+        var h = new Harness();
+        h.Server.Enqueue(h.Fresh(10, 20, h.Now));
+        h.Rollout.Enqueue(null);
+        h.Rollout.Enqueue(new QuotaSnapshot("codex", new QuotaWindow(11, null, TimeSpan.FromHours(5)), null,
+            HealthState.Fresh, h.Now.AddSeconds(30), null));
+        var got = await Run(h.Build(), 2);
+
+        Assert.Equal(11, got[1].Session!.Percent);
+        Assert.Equal(20, got[1].Weekly!.Percent);
+    }
+
+    [Fact]
+    public async Task ResetPassed_AndReadFails_EmitsStaleWithTheOldPercent_NeverZero()
+    {
+        var h = new Harness();
+        var start = h.Now;
+        h.Server.Enqueue(h.Fresh(70, 20, start, sessionReset: start.AddMinutes(3)));
+        // every later server read fails
+        var got = await Run(h.Build(), 2);
+
+        Assert.Equal(HealthState.Stale, got[1].Health);
+        Assert.Equal(70, got[1].Session!.Percent);
+        Assert.True(h.Now >= start.AddMinutes(3).AddSeconds(30));
+        Assert.True(h.Now < start.AddMinutes(10));              // not waiting for the 10-minute read
+    }
+
+    [Fact]
+    public async Task ResetPassed_AndReadSucceeds_EmitsFreshOnly()
+    {
+        var h = new Harness();
+        var start = h.Now;
+        h.Server.Enqueue(h.Fresh(70, 20, start, sessionReset: start.AddMinutes(3)));
+        h.Server.Enqueue(h.Fresh(2, 21, start.AddMinutes(3).AddSeconds(31)));
+        var got = await Run(h.Build(), 2);
+
+        Assert.Equal(HealthState.Fresh, got[1].Health);
+        Assert.Equal(2, got[1].Session!.Percent);
+    }
+
+    [Fact]
+    public async Task ThreeFailedReads_EmitProtocolBrokenOnce_ThenRolloutRecovers()
+    {
+        var h = new Harness();                                 // server queue empty: every read fails
+        for (var i = 0; i < 50; i++) h.Rollout.Enqueue(null);  // polls at 0 s .. 24 min 30 s are quiet
+        h.Rollout.Enqueue(h.Fresh(12, 13, h.Now.AddMinutes(25)));
+        var got = await Run(h.Build(), 2);
+
+        Assert.Equal(HealthState.ProtocolBroken, got[0].Health);
+        Assert.Equal(HealthState.Fresh, got[1].Health);
+        Assert.Equal(3, h.ServerReads);                        // t=0, 10, 20 min; no fast retry
+    }
+
+    [Fact]
+    public async Task RequestRefresh_CutsTheWaitShortAndReads()
+    {
+        var h = new Harness();
+        h.Server.Enqueue(h.Fresh(10, 20, h.Now));
+        h.Server.Enqueue(h.Fresh(15, 20, h.Now.AddSeconds(1)));
         var collector = new CodexCollector(
-            () => { attempts++; return new FakeProcess(Array.Empty<string>(), failStart: true); },
-            () => Now,
-            (_, _) => Task.CompletedTask,
-            () =>
-            {
-                // The fallback may be requested multiple times (once every three
-                // failures). Measure the FIRST request; if later requests overwrite
-                // it, the test measures how many loop turns have elapsed, not behavior.
-                if (attemptsWhenFallbackRequested == 0)
-                    attemptsWhenFallbackRequested = attempts;
-                return fallback;
-            });
+            _ => { h.ServerReads++; return Task.FromResult(h.Server.Count > 0 ? h.Server.Dequeue() : h.Broken()); },
+            () => null,
+            () => h.Now,
+            async (d, ct) => { await Task.Delay(Timeout.Infinite, ct); });
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var got = new List<QuotaSnapshot>();
+        await foreach (var s in collector.Watch(cts.Token))
+        {
+            got.Add(s);
+            if (got.Count == 1) { h.Now = h.Now.AddSeconds(1); collector.RequestRefresh(); }
+            if (got.Count == 2) break;
+        }
 
-        var snaps = await Take(collector, 1);
-
-        Assert.Equal(3, attemptsWhenFallbackRequested);
-        Assert.Equal(HealthState.Stale, snaps[0].Health);
-        Assert.Equal(11.0, snaps[0].Session!.Percent);
+        Assert.Equal(15, got[1].Session!.Percent);
+        Assert.Equal(2, h.ServerReads);
     }
 
     [Fact]
-    public async Task Watch_StartFailsAndNoFallback_YieldsProtocolBroken()
+    public async Task Cancellation_EndsTheStreamWithoutThrowing()
     {
-        var collector = new CodexCollector(
-            () => new FakeProcess(Array.Empty<string>(), failStart: true),
-            () => Now, (_, _) => Task.CompletedTask, () => null);
-
-        var snaps = await Take(collector, 1);
-
-        Assert.Equal(HealthState.ProtocolBroken, snaps[0].Health);
-        Assert.Null(snaps[0].Session);
-    }
-
-    [Fact]
-    public async Task Watch_RestartBackoffIsCappedAtFiveMinutes()
-    {
-        var delays = new List<TimeSpan>();
-        var collector = new CodexCollector(
-            () => new FakeProcess(Array.Empty<string>(), failStart: true),
-            () => Now, (d, _) => { delays.Add(d); return Task.CompletedTask; }, () => null);
-
-        await Take(collector, 1);
-
-        Assert.All(delays, d => Assert.True(d <= TimeSpan.FromMinutes(5)));
-    }
-
-    [Fact]
-    public async Task RequestRefresh_SendsReadToTheActiveProcess()
-    {
-        var process = new FakeProcess(new[] { InitLine }, blockAfterLines: true);
-        var refreshWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var collector = new CodexCollector(
-            () => process, () => Now, (_, ct) => refreshWait.Task.WaitAsync(ct), () => null);
-
-        using var cts = new CancellationTokenSource();
-        var enumerator = collector.Watch(cts.Token).GetAsyncEnumerator();
-        var pump = enumerator.MoveNextAsync();
-        await process.InitializedSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        var before = process.Sent.Count(l => l.Contains("account/rateLimits/read"));
-        collector.RequestRefresh();
-        await Task.Delay(100);
-
-        Assert.Equal(before + 1, process.Sent.Count(l => l.Contains("account/rateLimits/read")));
-        cts.Cancel();
-        try { await pump; } catch (OperationCanceledException) { }
-    }
-
-    [Fact]
-    public void RequestRefresh_WithoutAProcessIsSilent()
-    {
-        var collector = new CodexCollector(() => throw new InvalidOperationException(), () => Now,
-            (_, _) => Task.CompletedTask, () => null);
-        collector.RequestRefresh();
+        var h = new Harness();
+        var collector = new CodexCollector(_ => Task.FromResult(h.Broken()), () => null, () => h.Now,
+            async (d, ct) => await Task.Delay(Timeout.Infinite, ct));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        var ex = await Record.ExceptionAsync(async () => { await foreach (var _ in collector.Watch(cts.Token)) { } });
+        Assert.Null(ex);
     }
 }
+

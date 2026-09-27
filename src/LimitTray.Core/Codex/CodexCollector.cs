@@ -1,261 +1,207 @@
 using System.Runtime.CompilerServices;
-using System.Text.Json;
-using System.Threading.Channels;
 using LimitTray.Core.Collectors;
 using LimitTray.Core.Model;
-using LimitTray.Core.Process;
 
 namespace LimitTray.Core.Codex;
 
 public sealed class CodexCollector : IQuotaCollector
 {
-    private const int MaxStartAttempts = 3;
-    private static readonly TimeSpan FirstRestartDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan MaxRestartDelay = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan DefaultRefreshInterval = TimeSpan.FromSeconds(60);
-    /// <summary>How long the initialize handshake may take before the session counts as failed.</summary>
-    private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(20);
+    public static readonly TimeSpan RolloutPollInterval = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan ServerReadInterval = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan AfterResetDelay = TimeSpan.FromSeconds(30);
+    public const int FailuresBeforeBroken = 3;
 
-    private readonly Func<IJsonRpcProcess> _processFactory;
+    private readonly Func<CancellationToken, Task<QuotaSnapshot>> _readServer;
+    private readonly Func<QuotaSnapshot?> _pollRollout;
     private readonly Func<DateTimeOffset> _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
-    private readonly Func<QuotaSnapshot?> _readFallback;
-    private readonly Func<TimeSpan> _interval;
-    private volatile IJsonRpcProcess? _active;
-    private QuotaSnapshot? _lastFresh;
+    private CancellationTokenSource? _activeWait;
+    private int _refreshRequested;
 
     public CodexCollector(
-        Func<IJsonRpcProcess> processFactory,
+        Func<CancellationToken, Task<QuotaSnapshot>> readServer,
+        Func<QuotaSnapshot?> pollRollout,
         Func<DateTimeOffset> clock,
-        Func<TimeSpan, CancellationToken, Task> delay,
-        Func<QuotaSnapshot?> readFallback,
-        Func<TimeSpan>? interval = null)
+        Func<TimeSpan, CancellationToken, Task> delay)
     {
-        _processFactory = processFactory;
+        _readServer = readServer;
+        _pollRollout = pollRollout;
         _clock = clock;
         _delay = delay;
-        _readFallback = readFallback;
-        _interval = interval ?? (() => DefaultRefreshInterval);
     }
 
     public string Provider => CodexRateLimitsParser.Provider;
 
     public void RequestRefresh()
     {
-        var process = _active;
-        if (process is null) return;
-        _ = process.SendAsync(ReadMessage, CancellationToken.None)
-            .ContinueWith(_ => { }, TaskContinuationOptions.OnlyOnFaulted);
+        Interlocked.Exchange(ref _refreshRequested, 1);
+        try
+        {
+            Volatile.Read(ref _activeWait)?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The loop already completed the wait; the flag is checked before its next wait.
+        }
     }
 
-    /// <summary>
-    /// The session intentionally remains long-lived: account/rateLimits/updated
-    /// notifications flow while the app-server remains connected. Therefore,
-    /// snapshots are published as they arrive rather than in a batch at session
-    /// end. A Channel is used because yield return cannot be used inside try/catch.
-    /// </summary>
     public async IAsyncEnumerable<QuotaSnapshot> Watch(
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var channel = Channel.CreateUnbounded<QuotaSnapshot>(
-            new UnboundedChannelOptions { SingleWriter = true, SingleReader = true });
-
-        var pump = Task.Run(() => RunLoop(channel.Writer, ct), CancellationToken.None);
-
-        try
-        {
-            while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
-            {
-                while (channel.Reader.TryRead(out var snapshot))
-                    yield return snapshot;
-            }
-        }
-        finally
-        {
-            await pump.ConfigureAwait(false);
-        }
-    }
-
-    private async Task RunLoop(ChannelWriter<QuotaSnapshot> writer, CancellationToken ct)
-    {
+        QuotaSnapshot? latest = null;
         var failures = 0;
-        var restartDelay = FirstRestartDelay;
+        var staledResets = new HashSet<DateTimeOffset>();
+        var nextPoll = _clock();
+        var nextServer = nextPoll;
 
-        try
+        while (!ct.IsCancellationRequested)
         {
-            while (!ct.IsCancellationRequested)
+            var emissions = new List<QuotaSnapshot>();
+            void Offer(QuotaSnapshot snapshot)
             {
-                var started = await RunSession(writer, ct).ConfigureAwait(false);
+                if (latest is not null && snapshot.FetchedAt <= latest.FetchedAt) return;
 
-                if (started)
+                latest = snapshot with
                 {
-                    failures = 0;
-                    restartDelay = FirstRestartDelay;
+                    Session = snapshot.Session ?? latest?.Session,
+                    Weekly = snapshot.Weekly ?? latest?.Weekly,
+                };
+                emissions.Add(latest);
+            }
+
+            var now = _clock();
+
+            if (Interlocked.Exchange(ref _refreshRequested, 0) != 0)
+                nextServer = now;
+
+            if (now >= nextPoll)
+            {
+                var rollout = _pollRollout();
+                if (rollout is not null) Offer(rollout);
+                nextPoll = now + RolloutPollInterval;
+            }
+
+            var due = NextResetRead(latest, staledResets);
+            if (now >= nextServer || (due is not null && now >= due.Value))
+            {
+                var cancelled = false;
+                try
+                {
+                    var snapshot = await _readServer(ct).ConfigureAwait(false);
+                    if (snapshot.Health == HealthState.Fresh)
+                    {
+                        failures = 0;
+                        Offer(snapshot);
+                    }
+                    else
+                    {
+                        failures++;
+                        if (failures == FailuresBeforeBroken)
+                            emissions.Add(snapshot);
+                    }
                 }
-                else
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    cancelled = true;
+                }
+                catch (Exception ex)
                 {
                     failures++;
-                    if (failures >= MaxStartAttempts)
+                    if (failures == FailuresBeforeBroken)
                     {
-                        var fallback = _readFallback()
-                            ?? QuotaSnapshot.Unhealthy(
-                                Provider, HealthState.ProtocolBroken, _clock(),
-                                "codex app-server baslatilamadi");
-                        await writer.WriteAsync(fallback, ct).ConfigureAwait(false);
-                        failures = 0;
+                        emissions.Add(QuotaSnapshot.Unhealthy(
+                            Provider, HealthState.ProtocolBroken, _clock(), ex.GetType().Name));
                     }
                 }
 
-                await _delay(restartDelay, ct).ConfigureAwait(false);
-                restartDelay = restartDelay + restartDelay > MaxRestartDelay
-                    ? MaxRestartDelay
-                    : restartDelay + restartDelay;
+                if (cancelled) yield break;
+
+                now = _clock();
+                if (latest is not null)
+                {
+                    foreach (var window in Windows(latest))
+                    {
+                        if (window.ResetsAt is not { } reset || latest.FetchedAt >= reset ||
+                            reset > now - AfterResetDelay || !staledResets.Add(reset))
+                            continue;
+
+                        emissions.Add(latest with { Health = HealthState.Stale });
+                    }
+                }
+
+                nextServer = now + ServerReadInterval;
             }
-        }
-        catch (OperationCanceledException) { }
-        finally
-        {
-            writer.TryComplete();
-        }
-    }
 
-    /// <summary>Returns true if the process started and writes snapshots to the writer.</summary>
-    /// <summary>
-    /// Returns true only when the handshake completed: a process that could not be
-    /// created, could not start, exited before answering initialize, or never answered
-    /// within the timeout is a failed start, and three of those reach the fallback.
-    /// </summary>
-    private async Task<bool> RunSession(
-        ChannelWriter<QuotaSnapshot> writer, CancellationToken ct)
-    {
-        IJsonRpcProcess process;
-        try
-        {
-            // The factory itself can throw (codex.exe not found). That used to escape the
-            // loop and stop Codex collection for the life of the process.
-            process = _processFactory();
-            await process.StartAsync(ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception)
-        {
-            return false;
-        }
+            foreach (var emission in emissions)
+                yield return emission;
 
-        using (process)
-        {
-            using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            handshakeCts.CancelAfter(HandshakeTimeout);
-            Task? refreshLoop = null;
-            var initialized = false;
+            if (ct.IsCancellationRequested) yield break;
+            if (Interlocked.Exchange(ref _refreshRequested, 0) != 0)
+            {
+                nextServer = _clock();
+                continue;
+            }
 
+            due = NextResetRead(latest, staledResets);
+            var wake = due is { } resetDue
+                ? Min(nextPoll, nextServer, resetDue)
+                : Min(nextPoll, nextServer);
+            var wait = wake - _clock();
+            if (wait < TimeSpan.Zero) wait = TimeSpan.Zero;
+
+            using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            Volatile.Write(ref _activeWait, waitCts);
+            var waitCancelled = false;
             try
             {
-                await process.SendAsync(InitializeMessage, ct).ConfigureAwait(false);
-
-                // Lines are read with the handshake token until initialize is answered, so
-                // a process that stays alive but silent does not hang the session forever.
-                await foreach (var line in process.ReadLines(handshakeCts.Token).ConfigureAwait(false))
+                if (Interlocked.Exchange(ref _refreshRequested, 0) != 0)
                 {
-                    if (!IsInitializeResponse(line)) continue;
-                    initialized = true;
-                    break;
+                    nextServer = _clock();
+                    continue;
                 }
 
-                if (initialized)
-                {
-                    _active = process;
-                    await process.SendAsync(InitializedNotification, ct).ConfigureAwait(false);
-                    await process.SendAsync(ReadMessage, ct).ConfigureAwait(false);
-                    refreshLoop = Task.Run(
-                        () => RefreshRead(process, refreshCts.Token),
-                        CancellationToken.None);
-
-                    await foreach (var line in process.ReadLines(ct).ConfigureAwait(false))
-                    {
-                        if (!CarriesRateLimits(line)) continue;
-
-                        var parsed = CodexRateLimitsParser.ParseAppServer(line, _clock());
-                        await writer.WriteAsync(Merge(parsed), ct).ConfigureAwait(false);
-                    }
-                }
+                await _delay(wait, waitCts.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-            catch (OperationCanceledException) { /* handshake timeout: a failed start */ }
-            catch (Exception) { /* the process died; the loop restarts it */ }
+            catch (OperationCanceledException)
+            {
+                waitCancelled = true;
+            }
             finally
             {
-                _active = null;
-                refreshCts.Cancel();
-                if (refreshLoop is not null)
-                {
-                    // A faulted refresh loop (stdin closed under a write) must not escape
-                    // here; the session is over either way and the loop decides what next.
-                    try { await refreshLoop.ConfigureAwait(false); }
-                    catch (Exception) { }
-                }
+                Interlocked.CompareExchange(ref _activeWait, null, waitCts);
             }
 
-            return initialized;
+            if (waitCancelled && ct.IsCancellationRequested) yield break;
         }
     }
 
-    /// <summary>
-    /// account/rateLimits/updated can carry only the window that changed. A partial
-    /// notification must not erase the other window we already know; a fresh reading
-    /// of one window is combined with the last fresh reading of the other.
-    /// </summary>
-    private QuotaSnapshot Merge(QuotaSnapshot parsed)
+    private static DateTimeOffset? NextResetRead(
+        QuotaSnapshot? latest, HashSet<DateTimeOffset> staledResets)
     {
-        if (parsed.Health != HealthState.Fresh) return parsed;
+        if (latest is null) return null;
 
-        var previous = _lastFresh;
-        var merged = parsed with
+        DateTimeOffset? due = null;
+        foreach (var window in Windows(latest))
         {
-            Session = parsed.Session ?? previous?.Session,
-            Weekly = parsed.Weekly ?? previous?.Weekly,
-        };
-        _lastFresh = merged;
-        return merged;
-    }
+            if (window.ResetsAt is not { } reset || latest.FetchedAt >= reset ||
+                staledResets.Contains(reset))
+                continue;
 
-    private async Task RefreshRead(IJsonRpcProcess process, CancellationToken ct)
-    {
-        try
-        {
-            while (!ct.IsCancellationRequested)
-            {
-                await _delay(_interval(), ct).ConfigureAwait(false);
-                await process.SendAsync(ReadMessage, ct).ConfigureAwait(false);
-            }
+            var candidate = reset + AfterResetDelay;
+            if (due is null || candidate < due) due = candidate;
         }
-        catch (OperationCanceledException) { }
+
+        return due;
     }
 
-    private const string InitializeMessage = """
-    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"limit-tray","title":"Lim'it","version":"0.3.4"}}}
-    """;
-
-    private const string InitializedNotification = """
-    {"jsonrpc":"2.0","method":"initialized","params":{}}
-    """;
-
-    private const string ReadMessage = """
-    {"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read","params":{}}
-    """;
-
-    private static bool IsInitializeResponse(string line)
+    private static IEnumerable<QuotaWindow> Windows(QuotaSnapshot snapshot)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(line);
-            return doc.RootElement.TryGetProperty("id", out var id) &&
-                   id.ValueKind == JsonValueKind.Number && id.GetInt32() == 1;
-        }
-        catch (JsonException) { return false; }
+        if (snapshot.Session is not null) yield return snapshot.Session;
+        if (snapshot.Weekly is not null) yield return snapshot.Weekly;
     }
 
-    private static bool CarriesRateLimits(string line) =>
-        line.Contains("\"rateLimits\"", StringComparison.Ordinal);
+    private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;
+
+    private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b, DateTimeOffset c) =>
+        Min(Min(a, b), c);
 }

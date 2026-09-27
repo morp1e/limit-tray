@@ -120,99 +120,42 @@ public class ReviewFixesTests
         Assert.Contains(Strings.English.RateLimited, text);
     }
 
-    // Codex collector
+    // Codex collector. The 2026-09-20 review pinned four behaviours of the long-lived
+    // app-server session. v0.4 replaced that session with sparse one-shot reads
+    // (docs/specs/2026-09-27-native-aot-design.md), and each rule moved with its code:
+    //   partial update keeps the other window -> CodexCollectorTests.PartialReading_KeepsTheOtherWindow
+    //   exit before initialize is a failed start -> CodexServerReaderTests.ReadOnce_ProcessEndsEarly_IsBroken
+    //   refresh interval from the setting -> gone: Codex is read every 10 minutes, the setting is Claude's
+    //   a throwing factory must not stop Codex collection for the life of the process -> below,
+    //   end to end through the real reader, because that was the defect that froze the Codex card.
 
-    private sealed class ScriptedProcess : IJsonRpcProcess
+    [Fact]
+    public async Task Codex_FactoryThrowing_DoesNotStopCollection()
     {
-        private readonly string[] _lines;
-        public List<string> Sent { get; } = new();
-        public ScriptedProcess(params string[] lines) => _lines = lines;
-        public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
-        public Task SendAsync(string jsonLine, CancellationToken ct) { Sent.Add(jsonLine); return Task.CompletedTask; }
-        public async IAsyncEnumerable<string> ReadLines(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-        {
-            foreach (var line in _lines) { ct.ThrowIfCancellationRequested(); yield return line; await Task.Yield(); }
-        }
-        public void Dispose() { }
-    }
+        var clock = Now;
+        var reader = new CodexServerReader(
+            () => throw new InvalidOperationException("codex.exe bulunamadi"), () => clock);
+        var polls = 0;
+        var collector = new CodexCollector(
+            reader.ReadOnceAsync,
+            () => ++polls == 3
+                ? new QuotaSnapshot("codex", new QuotaWindow(12, null, TimeSpan.FromHours(5)), null,
+                    HealthState.Fresh, clock, null)
+                : null,
+            () => clock,
+            (delay, ct) => { clock += delay; return Task.CompletedTask; });
 
-    private const string Init = """{"id":1,"result":{}}""";
-    private const string FullRead = """{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":300},"secondary":{"usedPercent":40,"windowDurationMins":10080}}}}""";
-    private const string PrimaryOnlyUpdate = """{"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":12,"windowDurationMins":300}}}}""";
-
-    private static async Task<List<QuotaSnapshot>> Take(CodexCollector collector, int count)
-    {
-        var result = new List<QuotaSnapshot>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try
+        QuotaSnapshot? first = null;
+        await foreach (var snapshot in collector.Watch(cts.Token))
         {
-            await foreach (var snap in collector.Watch(cts.Token))
-            {
-                result.Add(snap);
-                if (result.Count >= count) { await cts.CancelAsync(); break; }
-            }
+            first = snapshot;
+            break;
         }
-        catch (OperationCanceledException) { }
-        return result;
-    }
 
-    [Fact]
-    public async Task Codex_FactoryThrowing_ReachesTheFallbackInsteadOfStoppingForever()
-    {
-        var fallback = QuotaSnapshot.Unhealthy("codex", HealthState.Stale, Now, "file");
-        var collector = new CodexCollector(
-            () => throw new InvalidOperationException("codex.exe bulunamadi"),
-            () => Now, (_, _) => Task.CompletedTask, () => fallback);
-
-        var snaps = await Take(collector, 1);
-
-        Assert.Single(snaps);
-        Assert.Equal(HealthState.Stale, snaps[0].Health);
-    }
-
-    [Fact]
-    public async Task Codex_PartialUpdate_KeepsTheOtherWindow()
-    {
-        var process = new ScriptedProcess(Init, FullRead, PrimaryOnlyUpdate);
-        var collector = new CodexCollector(() => process, () => Now, (_, _) => Task.CompletedTask, () => null);
-
-        var snaps = await Take(collector, 2);
-
-        Assert.Equal(12, snaps[1].Session!.Percent);
-        Assert.NotNull(snaps[1].Weekly);
-        Assert.Equal(40, snaps[1].Weekly!.Percent);
-    }
-
-    [Fact]
-    public async Task Codex_ExitBeforeInitialize_IsAFailedStart()
-    {
-        // Three sessions that end before answering initialize must reach the fallback,
-        // exactly like three processes that could not start at all.
-        var starts = 0;
-        var fallback = QuotaSnapshot.Unhealthy("codex", HealthState.Stale, Now, "file");
-        var collector = new CodexCollector(
-            () => { starts++; return new ScriptedProcess(); },
-            () => Now, (_, _) => Task.CompletedTask, () => fallback);
-
-        var snaps = await Take(collector, 1);
-
-        Assert.Equal(HealthState.Stale, snaps[0].Health);
-        Assert.True(starts >= 3, $"starts={starts}");
-    }
-
-    [Fact]
-    public async Task Codex_RefreshIntervalComesFromTheSetting()
-    {
-        var delays = new List<TimeSpan>();
-        var process = new ScriptedProcess(Init, FullRead);
-        var collector = new CodexCollector(() => process, () => Now,
-            (d, ct) => { delays.Add(d); return Task.Delay(Timeout.InfiniteTimeSpan, ct); },
-            () => null, () => TimeSpan.FromSeconds(300));
-
-        await Take(collector, 1);
-        await Task.Delay(50);
-
-        Assert.Contains(TimeSpan.FromSeconds(300), delays);
+        // The reader failed on every attempt, yet the loop kept polling and delivered the file reading.
+        Assert.NotNull(first);
+        Assert.Equal(HealthState.Fresh, first!.Health);
+        Assert.Equal(12, first.Session!.Percent);
     }
 }
