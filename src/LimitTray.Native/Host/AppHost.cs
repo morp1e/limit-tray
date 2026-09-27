@@ -95,7 +95,8 @@ internal sealed class AppHost : IAppActions, IDisposable
         RegisterWindowMessages();
         _timers.StartStaleness();
 
-        if (StartupRegistration.IsEnabled() && !StartupRegistration.PointsToCurrentExecutable())
+        if (MayMoveStartupEntry(commandLine) &&
+            StartupRegistration.IsEnabled() && !StartupRegistration.PointsToCurrentExecutable())
             StartupRegistration.SetEnabled(true, commandLine.Raw);
 
         if (_commandLine.FixturePath is { } fixturePath)
@@ -321,6 +322,15 @@ internal sealed class AppHost : IAppActions, IDisposable
         if (_popup.IsOpen && ShouldRefreshCodex(_store.Get("codex")?.FetchedAt, DateTimeOffset.Now))
             _collectors.FirstOrDefault(c => string.Equals(c.Provider, "codex", StringComparison.OrdinalIgnoreCase))?.RequestRefresh();
     }
+
+    /// <summary>
+    /// The upgrade step that moves an enabled startup entry to this executable runs only for
+    /// a normal launch. A measurement run from a temporary folder (--fixture or --data-dir)
+    /// once pointed the user's startup entry at that folder, which would be deleted later.
+    /// </summary>
+    internal static bool MayMoveStartupEntry(CommandLine commandLine) =>
+        commandLine.FixturePath is null &&
+        !commandLine.Raw.Any(argument => string.Equals(argument, "--data-dir", StringComparison.OrdinalIgnoreCase));
 
     internal static bool ShouldRefreshCodex(DateTimeOffset? fetchedAt, DateTimeOffset now) =>
         fetchedAt is null || now - fetchedAt.Value > CodexPopupAge;

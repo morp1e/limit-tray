@@ -15,6 +15,14 @@ public class AppHostLogicTests
     }
 
     [Theory]
+    [InlineData(new string[0], true)]
+    [InlineData(new[] { "--lang=en" }, true)]
+    [InlineData(new[] { "--fixture", "f.json" }, false)]
+    [InlineData(new[] { "--data-dir", "C:\\Temp\\x" }, false)]
+    public void StartupEntry_MovesOnlyOnANormalLaunch(string[] args, bool expected) =>
+        Assert.Equal(expected, AppHost.MayMoveStartupEntry(CommandLine.Parse(args, "C:\\default")));
+
+    [Theory]
     [InlineData("\"C:\\Apps\\LimitTray.exe\" --lang=en", "c:\\apps\\limittray.exe", true)]
     [InlineData("\"C:\\Old\\LimitTray.exe\"", "C:\\Apps\\LimitTray.exe", false)]
     public void StartupCommand_ComparisonUsesExecutablePath(string command, string current, bool expected) =>
