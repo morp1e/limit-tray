@@ -122,7 +122,26 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         _content.Settings.Update(_app.Settings, _app.StartupEnabled, _app.SettingsSaveFailed);
     }
 
+    /// <summary>
+    /// Draws a frame. Direct2D reports failures (a render target or DIB that cannot be
+    /// created) by throwing; on the UI thread that would end the process, so the popup
+    /// closes instead and the host says the panel cannot be drawn. Found by the v0.4
+    /// verifier: only factory creation in Open() was guarded.
+    /// </summary>
     private void Render()
+    {
+        try
+        {
+            RenderFrame();
+        }
+        catch (Exception)
+        {
+            Close();
+            GraphicsFailed?.Invoke();
+        }
+    }
+
+    private void RenderFrame()
     {
         if (_window is null || _renderer is null || _content is null) return;
         var now = Environment.TickCount64;
