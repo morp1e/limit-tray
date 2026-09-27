@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "snapshots": [
+    { "provider": "claude", "health": "Fresh", "ageSeconds": 0, "detail": null,
+      "session": { "percent": 18, "resetsInMinutes": 287, "windowMinutes": 300 },
+      "weekly": { "percent": 30, "resetsInMinutes": 5700, "windowMinutes": 10080 } },
+    { "provider": "codex", "health": "Fresh", "ageSeconds": 0, "detail": null,
+      "session": { "percent": 18, "resetsInMinutes": 26, "windowMinutes": 300 },
+      "weekly": { "percent": 22, "resetsInMinutes": 7000, "windowMinutes": 10080 } }
+  ],
+  "history": [
+    { "provider": "claude", "kind": "Session", "windowMinutes": 300, "resetsInMinutes": 287,
+      "samples": [[60, 13.8], [50, 14.5], [40, 15.2], [30, 15.9], [20, 16.6], [10, 17.3], [0, 18]] },
+    { "provider": "claude", "kind": "Weekly", "windowMinutes": 10080, "resetsInMinutes": 5700,
+      "samples": [[120, 28.51], [100, 28.76], [80, 29.01], [60, 29.26], [40, 29.5], [20, 29.75], [0, 30]] }
+  ]
+}

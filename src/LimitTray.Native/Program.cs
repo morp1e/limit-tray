@@ -12,8 +12,10 @@ namespace LimitTray.Native;
 internal static unsafe class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (Measure.RenderCommand.TryRun(args, out var renderExit)) return renderExit;
+
         var dataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "limit-tray");
         using var instance = SingleInstance.TryAcquire(dataDirectory);
