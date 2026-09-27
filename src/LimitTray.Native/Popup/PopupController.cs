@@ -38,9 +38,21 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
 
     public void Toggle()
     {
-        if (IsOpen) Close();
-        else Open();
+        if (IsOpen)
+        {
+            Close();
+            return;
+        }
+
+        // Clicking the tray icon while the popup is open first takes focus from the popup,
+        // which closes it, and then delivers the click, which would open it again. A toggle
+        // right after a focus-loss close is that same click; it means "close".
+        if (Environment.TickCount64 - _deactivatedAt < ReopenGuardMilliseconds) return;
+        Open();
     }
+
+    private const long ReopenGuardMilliseconds = 300;
+    private long _deactivatedAt = long.MinValue / 2;
 
     /// <summary>From the tray menu: opens if needed, then slides to settings, as v0.3 did.</summary>
     public void OpenSettings()
@@ -269,7 +281,12 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         Close();
     }
 
-    public void OnDeactivated() => Close();
+    public void OnDeactivated()
+    {
+        if (!IsOpen) return;
+        _deactivatedAt = Environment.TickCount64;
+        Close();
+    }
 
     public void OnTimer(nuint id)
     {
