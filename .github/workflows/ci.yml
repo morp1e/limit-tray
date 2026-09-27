@@ -17,6 +17,11 @@ jobs:
       - run: dotnet build --configuration Release
       - run: dotnet test --configuration Release
 
+      # The release is a NativeAOT build; trimming and AOT warnings only appear at
+      # publish, and the project treats them as errors.
+      - name: NativeAOT publish
+        run: dotnet publish src/LimitTray.Native --configuration Release --runtime win-x64 --output publish/ci
+
       # A rule nobody can enforce is a rule that gets broken. This one was, 68 times
       # in a day, so it is checked here instead of remembered.
       - name: no-em-dash

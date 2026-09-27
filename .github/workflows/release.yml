@@ -41,20 +41,15 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$($tag -replace '^v', '')" >> $env:GITHUB_OUTPUT
 
-      # Self-contained and single file: the download needs no .NET installed.
-      # IncludeNativeLibrariesForSelfExtract is what folds WPF's native DLLs in;
-      # without it the publish is an exe plus five loose DLLs.
+      # NativeAOT: one native executable, no .NET needed on the machine. The project sets
+      # PublishAot; the runner's Visual Studio provides the MSVC linker. v0.3's WPF build
+      # was a 74 MB compressed single file that unpacked itself into memory at start.
       - name: Publish
         shell: pwsh
         run: |
-          dotnet publish src/LimitTray.App `
+          dotnet publish src/LimitTray.Native `
             --configuration Release `
             --runtime win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:EnableCompressionInSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:DebugType=none `
             -p:Version=${{ steps.version.outputs.version }} `
             --output publish/release
 
@@ -62,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $name = "limit-tray-${{ steps.version.outputs.tag }}-win-x64.exe"
-          Move-Item publish/release/LimitTray.App.exe "publish/release/$name"
+          Move-Item publish/release/LimitTray.exe "publish/release/$name"
           $hash = (Get-FileHash "publish/release/$name" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name" | Out-File "publish/release/$name.sha256" -Encoding ascii
           Write-Host "$name  $hash"

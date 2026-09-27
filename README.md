@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#download">Download</a> ·
   <a href="#why-this-exists">Why this exists</a> ·
+  <a href="#footprint">Footprint</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#security-and-privacy">Security</a> ·
   <a href="#build-from-source">Build from source</a>
@@ -28,8 +29,8 @@ place, so "how much do I have left?" does not cost you a session.
 ## Download
 
 **[Download the latest release](https://github.com/morp1e/limit-tray/releases/latest)**.
-One file, 64-bit Windows. Nothing to install: it carries its own .NET runtime, which is
-also why it is around 70 MB.
+One 6 MB file for 64-bit Windows 10 or 11. Nothing to install: it is compiled ahead of time
+to native code, so there is no .NET runtime to download.
 
 Run it and it appears in the tray. Left-click for the panel, right-click for the menu
 (**Start with Windows**, **Exit**). Startup is off until you turn it on.
@@ -43,7 +44,7 @@ log in again, and it has no settings file to fill in.
 > release ships a `.sha256` file next to the binary if you would rather verify it first:
 >
 > ```powershell
-> Get-FileHash .\limit-tray-v0.3.4-win-x64.exe -Algorithm SHA256
+> Get-FileHash .\limit-tray-v0.4.0-win-x64.exe -Algorithm SHA256
 > ```
 >
 > The binary is built by [GitHub Actions from the tagged commit](.github/workflows/release.yml),
@@ -89,6 +90,34 @@ missing, the endpoint rate-limits, or an upstream API changes shape, the panel s
 words. `0%` only ever means a real, measured zero. Getting that wrong is the one failure that
 would make a quota display worse than useless.
 
+## Footprint
+
+A tray icon should cost next to nothing, and up to v0.3 this one did not. The WPF build
+held 180 MB of private memory at rest on my machine (Intel Iris Xe, two monitors, where
+WPF's hardware rendering path is known to be expensive) and kept `codex app-server` running
+beside it for another 21 MB. v0.4 is a rewrite of the interface in C# compiled to native
+code with plain Win32 and software Direct2D, and it looks the same.
+
+| | v0.3.4 (WPF) | v0.4.0 (native) |
+|---|---|---|
+| Download | 74 MB | 6 MB |
+| Private memory at rest, real providers | 180 MB, plus 21 MB for `codex app-server` | 11.5 MB, no child process |
+| Private memory at rest, fixture data | not measured | 6.4 MB |
+| After using the panel | grew to 255 MB in use and stayed there | 8.0 MB after open, expand, settings, close |
+| CPU at rest | ~0.05% | 0 ms per minute outside scheduled reads |
+
+Measured with Private Bytes, which is what the process has actually committed; Task
+Manager's "Memory" column shows the working set, which drops when Windows trims pages and
+says little about cost. The v0.4 numbers come from
+[`tools/Footprint/Measure-Footprint.ps1`](tools/Footprint/README.md), which runs a build
+against fixture data and fails if it goes over 20 MB at rest or does not come back within
+3 MB of that after using the panel.
+
+What makes the difference: the panel window, its drawing surfaces and the Direct2D and
+DirectWrite objects exist only while the panel is open. The tray icon is redrawn only when
+what it shows changes. And Codex is no longer a process that lives as long as Lim'it does
+(see below).
+
 ## How it works
 
 The two providers expose their quota in completely different ways, so Lim'it reads them
@@ -105,12 +134,23 @@ numbers, marked with their real age, instead of blanking the panel. A 429 here m
 usage *lookup* was throttled. It says nothing about your actual quota, and the UI wording is
 careful about that distinction.
 
-**Codex.** Speaks JSON-RPC to `codex app-server` over stdio, calling
-`account/rateLimits/read` and listening for `account/rateLimits/updated` notifications. It
-also re-reads on a timer, because app-server only pushes when the quota actually changes and
-the data would otherwise look stale while being perfectly current. If app-server cannot be
-started, Lim'it falls back to the last `rate_limits` block written into
-`~/.codex/sessions/**/rollout-*.jsonl`, and clearly marks that data as stale.
+**Codex.** Two sources, neither of which keeps a process alive:
+
+- Every 30 seconds Lim'it checks the size of the newest Codex session files in
+  `~/.codex/sessions`. When one has grown, it reads the last 64 KB and takes the most
+  recent `rate_limits` block that Codex CLI wrote there from its own server responses. So
+  while you use Codex on this machine the number follows within half a minute. It never
+  reads a whole file (they reach tens of megabytes) and change is judged by the file's real
+  length, because Windows kept a file's modified time frozen while Codex was writing it.
+- Every 10 minutes, at each known window reset plus 30 seconds, and when you open the panel
+  with a Codex value older than two minutes, it starts `codex app-server`, calls
+  `account/rateLimits/read`, and ends the process. A read takes a few seconds; usage on
+  another device shows up this way.
+
+The newer of the two readings wins. If a window's reset time passes before a new reading
+arrives, the old percentage is shown as stale with its age rather than guessed down to 0%.
+If app-server fails three times in a row, the card says so and the session files keep it
+current.
 
 **History.** Every fresh reading is kept in memory and mirrored to
 `%LOCALAPPDATA%\limit-tray\history.json`. It buys three things:
@@ -127,9 +167,10 @@ started, Lim'it falls back to the last `rate_limits` block written into
   real time, so a pause in usage looks like a pause.
 
 A drop in the percentage means the window rolled over, so the series is dropped rather
-than fitted across the reset. The file holds percentages, window lengths and timestamps
-and nothing else; if it is missing or corrupt the app behaves exactly as it would on a
-first run.
+than fitted across the reset. The file holds provider and window names, percentages,
+window lengths and timestamps, including reset times. It holds no token, account ID,
+response body or error detail. If it is missing or corrupt the app behaves exactly as it
+would on a first run.
 
 **Settings.** Everything you can change lives on the second page of the panel and in
 `%LOCALAPPDATA%\limit-tray\settings.json`: theme (system, dark, light), language, the
@@ -143,8 +184,8 @@ reported on the settings page rather than by a crash.
 is silent, and falling back below it arms the next crossing. A tool that warns every two
 minutes gets muted, and a muted warning is worth nothing.
 
-All logic lives in `LimitTray.Core`, which has no WPF dependency and is covered by tests.
-`LimitTray.App` only draws.
+All logic lives in `LimitTray.Core`, which knows nothing about windows or drawing and is
+covered by tests. `LimitTray.Native` hosts the tray icon and draws the panel.
 
 ## Security and privacy
 
@@ -158,12 +199,18 @@ with them, so:
   never included in an error message. Error text carries only a status code or an exception
   type name. There is a test asserting the token cannot leak into error details.
 - Lim'it has no telemetry and no analytics, and makes no network request other than the usage
-  endpoint above.
-- It writes two files under `%LOCALAPPDATA%\limit-tray\`. `history.json` holds
-  percentages, window lengths and timestamps; `settings.json` holds your settings. No token,
-  no account identifier, no request or response body, and no error text in either. Error
-  detail can carry an exception message, so it is deliberately never persisted. Deleting the
-  files loses the trend and your preferences, and nothing else.
+  endpoint above. The short-lived `codex app-server` it starts talks to OpenAI with Codex's
+  own login, exactly as Codex CLI does.
+- It reads the last 64 KB of your newest Codex session files and parses only the
+  `rate_limits` block. Those files contain your Codex conversations; nothing else in them is
+  parsed, kept in memory beyond the read, written anywhere or sent anywhere.
+- It writes two files under `%LOCALAPPDATA%\limit-tray\`. `history.json` holds provider and
+  window names, percentages, window lengths and timestamps; `settings.json` holds your
+  settings. No token, account identifier, request or response body, or error text is stored
+  in either. Error detail can carry an exception message, so it is deliberately never
+  persisted. Deleting the files loses the trend and your preferences, and nothing else.
+- If you enable **Start with Windows**, it writes a value under your per-user Windows Run
+  registry key. Disabling the option removes that value. Startup is off by default.
 
 The code is short and the relevant file is
 [`ClaudeCredentialReader.cs`](src/LimitTray.Core/Claude/ClaudeCredentialReader.cs).
@@ -182,24 +229,31 @@ useful until the code is updated. Do not build anything important on top of it.
 
 ## Build from source
 
-You need the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). To publish
+the native executable you also need Visual Studio's **Desktop development with C++**
+workload, which provides the linker NativeAOT uses.
 
 ```
-dotnet run --project src/LimitTray.App
-dotnet run --project src/LimitTray.App -- --lang en
+dotnet run --project src/LimitTray.Native
+dotnet run --project src/LimitTray.Native -- --lang en
 dotnet test
 ```
 
-To produce the same single file the release ships:
+To produce the executable the release ships:
 
 ```
-dotnet publish src/LimitTray.App -c Release -r win-x64 --self-contained true ^
-  -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true ^
-  -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o publish/win-x64
+dotnet publish src/LimitTray.Native -c Release -r win-x64 -o publish/win-x64
 ```
 
-`IncludeNativeLibrariesForSelfExtract` is the flag that matters: without it WPF's native
-DLLs stay beside the executable and the "single file" is six files.
+If the publish fails with `'vswhere.exe' is not recognized` followed by a linker exit code,
+put the Visual Studio Installer folder on `PATH` for that shell
+(`$env:PATH += ";${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"`). The C++
+environment script looks for `vswhere.exe` by name and its error ends up inside the linker
+command.
+
+To see the panel without a tray or live data, render it from a fixture:
+`LimitTray.exe --render panel.png --fixture tools/Footprint/fixtures/normal.json`
+([more](tools/Footprint/README.md)).
 
 Releases are cut by pushing a tag (`git tag v0.3.0 && git push origin v0.3.0`), which runs
 [the release workflow](.github/workflows/release.yml): tests, publish, checksum, upload.
@@ -231,6 +285,16 @@ Codex wrote the settings model, colour rule, tray icon model and collector chang
 (the mockup-matched look, the settings page polish) and every on-screen check.
 The spec and plan are in [`docs/`](docs/) if you want to see the actual process, including
 the defects that came out of it.
+
+v0.4, the native rewrite, was split the same way. Codex wrote the data-path changes in
+`LimitTray.Core` and the Win32 host, each in its own git worktree; Claude wrote the spec,
+the plan and the whole drawing layer, and reviewed and ran everything before it was
+merged. Two of Codex's lanes came back with real defects that their own tests did not
+catch: the host never loaded `history.json`, and a tray-icon call that throws whenever
+Explorer restarts. The drawing layer was checked against the v0.3 screenshots pixel by
+pixel through the render command; the panel and settings pages match them in height and in
+every edge, and three of the mismatches found on the way were WPF layout rules nobody had
+written down.
 
 v0.3 added one more defect to that list. With 217 tests green the app crashed at first
 layout: a `Run` bound to a read-only view-model property defaults to a two-way binding,

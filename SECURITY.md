@@ -25,10 +25,23 @@ These are testable claims, not intentions:
 - It is never written to disk, logged, displayed in the UI or tooltip, or included in an
   error message. Error text carries a status code or an exception type name and nothing
   else. There is a test asserting this.
-- The only file written is `%LOCALAPPDATA%\limit-tray\history.json`, containing
-  percentages, window lengths and timestamps. No token, no account identifier, no request
-  or response body, no error text.
-- No telemetry, no analytics, and no network request other than the usage endpoint above.
+- Lim'it writes `%LOCALAPPDATA%\limit-tray\history.json` with provider and window names,
+  percentages, window lengths and timestamps, including reset times. It also writes
+  `%LOCALAPPDATA%\limit-tray\settings.json` with your display and notification settings.
+  Each file is written through a temporary file in the same directory before replacement.
+  Neither contains a token, account identifier, request or response body, or error text.
+- If you enable **Start with Windows**, Lim'it writes a value under
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` containing the executable path
+  and optional language switch. The setting is off by default; disabling it removes the value.
+- It reads the last 64 KB of the newest Codex session files under `~/.codex/sessions` and
+  parses only their `rate_limits` blocks. Those files hold your Codex conversations; no
+  other part of them is parsed, kept after the read, written or sent anywhere.
+- It starts `codex app-server` for a few seconds at a time (every 10 minutes, after a window
+  reset, or when you open the panel with an old Codex value) and ends it after one
+  `account/rateLimits/read`. That process talks to OpenAI with Codex's own login, as Codex
+  CLI does; Lim'it never sees those credentials.
+- No telemetry, no analytics, and no network request of its own other than the usage
+  endpoint above.
 
 If you find any of these to be false, that is a vulnerability report, and it is the kind I
 most want to receive.
