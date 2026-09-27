@@ -262,10 +262,12 @@ internal sealed unsafe class Canvas : IDisposable, Ui.ITextMeasure
     /// vertically when <paramref name="centreVertically"/> is set (WPF's VerticalAlignment=Center).
     /// </summary>
     public void Text(string text, TextStyle style, RectF r, Colour c, TextAlign align = TextAlign.Leading,
-        bool centreVertically = false)
+        bool centreVertically = false, bool underline = false)
     {
         if (text.Length == 0 || c.A == 0) return;
         var layout = _text.CreateLayout(text, style, Math.Max(1, r.W), Math.Max(1, r.H));
+        if (underline)
+            layout->SetUnderline(true, new DWRITE_TEXT_RANGE { startPosition = 0, length = (uint)text.Length });
         layout->SetTextAlignment(align switch
         {
             TextAlign.Centre => DWRITE_TEXT_ALIGNMENT.DWRITE_TEXT_ALIGNMENT_CENTER,

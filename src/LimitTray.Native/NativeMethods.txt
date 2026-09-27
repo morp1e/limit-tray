@@ -63,3 +63,4 @@ IDWriteTypography
 IDWriteFontCollection
 LoadCursor
 IDC_ARROW
+GetSysColor

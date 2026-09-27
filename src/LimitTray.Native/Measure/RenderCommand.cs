@@ -53,9 +53,10 @@ internal static class RenderCommand
             return true;
         }
 
+        var palette = light ? Ui.Palette.LightTheme : Ui.Palette.DarkTheme;
         var page = new PanelPage
         {
-            Palette = light ? Ui.Palette.LightTheme : Ui.Palette.DarkTheme,
+            Palette = palette,
             Strings = strings,
             AnimationsEnabled = false,
             Hovered = Value(args, "--hover"),
@@ -63,8 +64,22 @@ internal static class RenderCommand
         };
         page.Update(store.All(), history, settings, now, 0);
 
+        // --page settings: v0.3.2's settings screenshot showed Dark, TR, startup on.
+        var settingsPage = new SettingsPage { Palette = palette, Strings = strings, AnimationsEnabled = false };
+        var shownSettings = settings with
+        {
+            Theme = light ? ThemeMode.Light : ThemeMode.Dark,
+            Language = Value(args, "--lang") == "en" ? LanguageMode.English : LanguageMode.Turkish,
+        };
+        settingsPage.Update(shownSettings, startupEnabled: true, saveFailed: args.Contains("--save-failed"));
+
+        var content = new PopupContent(page, settingsPage);
+        if (Value(args, "--page") == "settings") content.ShowSettings(0);
+        // After the slide: changing page closes an open list, as it does in the app.
+        if (Value(args, "--open-list") is { } list) settingsPage.OpenList(list, 0);
+
         using var renderer = new PopupRenderer(scale);
-        var surface = renderer.Render(page, 0);
+        var surface = renderer.Render(content, 0);
         // A dark desktop behind the dark theme, a light one behind the light theme.
         PngWriter.Write(output, surface, light ? new Colour(0xE8, 0xE8, 0xE8) : new Colour(0x20, 0x20, 0x20));
         return true;

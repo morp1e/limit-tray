@@ -1,4 +1,3 @@
-using LimitTray.Native.Graphics;
 using LimitTray.Native.Host;
 using LimitTray.Native.Ui;
 using Windows.Win32;
@@ -19,18 +18,20 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
 {
     private const nuint AnimationTimer = 1;
     private const nuint ClockTimer = 2;
+    private const nuint ExpiryTimer = 3;
     private const uint FrameMilliseconds = 16;
+    private const int VirtualKeyEscape = 0x1B;
 
     private readonly IAppActions _app;
     private PopupWindow? _window;
     private PopupRenderer? _renderer;
-    private PanelPage? _panel;
+    private PopupContent? _content;
     private RECT _workArea;
     private bool _animating;
 
     public PopupController(IAppActions app) => _app = app;
 
-    /// <summary>Raised once when the graphics stack cannot be created; the host tells the user.</summary>
+    /// <summary>Raised when the graphics stack cannot be created; the host tells the user.</summary>
     public event Action? GraphicsFailed;
 
     public bool IsOpen => _window is not null;
@@ -41,29 +42,32 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         else Open();
     }
 
+    /// <summary>From the tray menu: opens if needed, then slides to settings, as v0.3 did.</summary>
     public void OpenSettings()
     {
         if (!IsOpen) Open();
-        // The settings page arrives with Task 13; until then the panel opens.
+        if (_content is null) return;
+        _content.ShowSettings(Environment.TickCount64);
+        Render();
     }
 
     public void Close()
     {
         if (_window is null) return;
-        if (_panel is not null) _app.RememberExpanded(_panel.Expanded);
         _window.KillTimer(AnimationTimer);
         _window.KillTimer(ClockTimer);
+        _window.KillTimer(ExpiryTimer);
         _window.Dispose();
         _renderer?.Dispose();
         _window = null;
         _renderer = null;
-        _panel = null;
+        _content = null;
         _animating = false;
     }
 
     public void OnDataChanged()
     {
-        if (_panel is null) return;
+        if (_content is null) return;
         Refresh();
         Render();
     }
@@ -77,12 +81,15 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         }
         catch (Exception)
         {
-            // No Direct2D or DirectWrite: the tray keeps working and the user is told once.
+            // No Direct2D or DirectWrite: the tray keeps working and the user is told.
             GraphicsFailed?.Invoke();
             return;
         }
 
-        _panel = new PanelPage { AnimationsEnabled = ClientAreaAnimation() };
+        var animations = ClientAreaAnimation();
+        _content = new PopupContent(
+            new PanelPage { AnimationsEnabled = animations },
+            new SettingsPage { AnimationsEnabled = animations });
         Refresh();
         _window = new PopupWindow(this);
         Render();
@@ -90,32 +97,38 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         ScheduleClock();
     }
 
-    /// <summary>Pushes the host's current state into the page.</summary>
+    /// <summary>Pushes the host's current state into both pages.</summary>
     private void Refresh()
     {
-        if (_panel is null) return;
-        _panel.Palette = _app.IsDarkTheme ? Palette.DarkTheme : Palette.LightTheme;
-        _panel.Strings = _app.Strings;
-        _panel.Update(_app.Snapshots, _app.History, _app.Settings, DateTimeOffset.Now, Environment.TickCount64);
+        if (_content is null) return;
+        var palette = _app.IsDarkTheme ? Palette.DarkTheme : Palette.LightTheme;
+        _content.Panel.Palette = palette;
+        _content.Panel.Strings = _app.Strings;
+        _content.Panel.Update(_app.Snapshots, _app.History, _app.Settings, DateTimeOffset.Now, Environment.TickCount64);
+        _content.Settings.Palette = palette;
+        _content.Settings.Strings = _app.Strings;
+        _content.Settings.Update(_app.Settings, _app.StartupEnabled, _app.SettingsSaveFailed);
     }
 
     private void Render()
     {
-        if (_window is null || _renderer is null || _panel is null) return;
+        if (_window is null || _renderer is null || _content is null) return;
         var now = Environment.TickCount64;
-        var surface = _renderer.Render(_panel, now);
+        var surface = _renderer.Render(_content, now);
 
         // Bottom-right of the work area of the monitor the tray was clicked on, 12 DIPs
         // in, as v0.3; the window grows upwards because its bottom edge is the anchor.
         var inset = (int)MathF.Round(12 * _renderer.Scale);
-        var x = _workArea.right - inset - surface.Width;
-        var y = _workArea.bottom - inset - surface.Height;
-        _window.Present(surface, x, y);
+        _window.Present(surface, _workArea.right - inset - surface.Width, _workArea.bottom - inset - surface.Height);
 
-        var animating = _panel.IsAnimating(now);
+        var animating = _content.IsAnimating(now);
         if (animating && !_animating) _window.SetTimer(AnimationTimer, FrameMilliseconds);
         if (!animating && _animating) _window.KillTimer(AnimationTimer);
         _animating = animating;
+
+        // A transient message (terminal failure) needs one redraw when it expires.
+        if (_content.Panel.NextExpiry(now) is { } expiry)
+            _window.SetTimer(ExpiryTimer, (uint)Math.Max(1, expiry - now + 10));
     }
 
     /// <summary>Age and countdown texts change on minute boundaries; one wake-up per minute while open.</summary>
@@ -129,57 +142,131 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
 
     // ---- input ------------------------------------------------------------------
 
+    private Hit HitAt(int x, int y, out bool onSettings)
+    {
+        onSettings = false;
+        if (_renderer is null || _content is null) return Hit.None;
+        var point = _renderer.ToPanel(x, y);
+        if (_content.IsSliding(Environment.TickCount64)) return Hit.None;
+        onSettings = _content.SettingsShown;
+        return onSettings ? _content.Settings.HitTest(point.X, point.Y) : _content.Panel.HitTest(point.X, point.Y);
+    }
+
     public void OnMouseMove(int x, int y)
     {
-        if (_renderer is null || _panel is null) return;
-        var point = _renderer.ToPanel(x, y);
-        var hit = _panel.HitTest(point.X, point.Y);
-        var hovered = hit.Kind is HitKind.Card or HitKind.Terminal ? hit.Key : null;
-        if (hovered == _panel.Hovered && hit.Kind == _panel.HoveredKind) return;
-        _panel.Hovered = hovered;
-        _panel.HoveredKind = hit.Kind;
-        Render();
+        if (_content is null) return;
+        var hit = HitAt(x, y, out var onSettings);
+        bool changed;
+        if (onSettings)
+        {
+            var key = hit.Kind == HitKind.None ? null : hit.Key;
+            var item = hit.Kind is HitKind.Control or HitKind.DropdownItem ? hit.Index : -1;
+            changed = key != _content.Settings.Hovered || item != _content.Settings.HoveredItem;
+            _content.Settings.Hovered = key;
+            _content.Settings.HoveredItem = item;
+        }
+        else
+        {
+            var provider = hit.Kind is HitKind.Card or HitKind.Terminal ? hit.Key : null;
+            changed = provider != _content.Panel.Hovered || hit.Kind != _content.Panel.HoveredKind;
+            _content.Panel.Hovered = provider;
+            _content.Panel.HoveredKind = hit.Kind;
+        }
+        if (changed) Render();
     }
 
     public void OnMouseLeave()
     {
-        if (_panel is null || (_panel.Hovered is null && _panel.HoveredKind == HitKind.None)) return;
-        _panel.Hovered = null;
-        _panel.HoveredKind = HitKind.None;
+        if (_content is null) return;
+        _content.Panel.Hovered = null;
+        _content.Panel.HoveredKind = HitKind.None;
+        _content.Settings.Hovered = null;
+        _content.Settings.HoveredItem = -1;
         Render();
     }
 
     public void OnMouseUp(int x, int y)
     {
-        if (_renderer is null || _panel is null) return;
-        var point = _renderer.ToPanel(x, y);
-        var hit = _panel.HitTest(point.X, point.Y);
+        if (_content is null) return;
+        var hit = HitAt(x, y, out var onSettings);
         var now = Environment.TickCount64;
+        if (onSettings) OnSettingsClick(hit, now);
+        else OnPanelClick(hit, now);
+        Render();
+    }
+
+    private void OnPanelClick(Hit hit, long now)
+    {
+        var panel = _content!.Panel;
         switch (hit.Kind)
         {
             case HitKind.Card:
-                _panel.ToggleExpanded(hit.Key!);
-                _app.RememberExpanded(_panel.Expanded);
+                panel.ToggleExpanded(hit.Key!);
+                _app.RememberExpanded(panel.Expanded);
                 break;
             case HitKind.Terminal:
-                if (!_app.OpenTerminal(hit.Key!)) _panel.ShowTerminalError(hit.Key!, now + 3000);
+                if (!_app.OpenTerminal(hit.Key!)) panel.ShowTerminalError(hit.Key!, now + 3000);
                 break;
             case HitKind.Refresh:
-                _panel.StartRefreshTurn(now);
+                panel.StartRefreshTurn(now);
                 _app.RefreshNow();
                 break;
             case HitKind.Settings:
-                OpenSettings();
+                _content.ShowSettings(now);
+                break;
+        }
+    }
+
+    private void OnSettingsClick(Hit hit, long now)
+    {
+        var page = _content!.Settings;
+        switch (hit.Kind)
+        {
+            case HitKind.Back:
+                _content.ShowPanel(now);
+                break;
+            case HitKind.GitHub:
+                _app.OpenRepository();
+                break;
+            case HitKind.DropdownItem:
+                page.CloseList();
+                Apply(page.Choose(hit.Key!, hit.Index));
+                break;
+            case HitKind.Control when hit.Key == "startup":
+                _app.SetStartup(!_app.StartupEnabled);
+                Refresh();
+                break;
+            case HitKind.Control when hit.Key is "refresh" or "caution" or "warning" or "tray-source":
+                if (page.OpenDropdown == hit.Key) page.CloseList();
+                else page.OpenList(hit.Key!, now);
+                break;
+            case HitKind.Control:
+                Apply(page.Choose(hit.Key!, hit.Index));
                 break;
             default:
-                return;
+                // A click outside an open list closes it and does nothing else.
+                page.CloseList();
+                break;
         }
-        Render();
+    }
+
+    private void Apply(Core.Settings.AppSettings? next)
+    {
+        if (next is null || next.Equals(_app.Settings)) return;
+        // The host saves, applies and calls OnDataChanged, which refreshes both pages.
+        _app.ApplySettings(next);
     }
 
     public void OnKey(int virtualKey)
     {
-        if (virtualKey == 0x1B) Close(); // Esc
+        if (virtualKey != VirtualKeyEscape || _content is null) return;
+        if (_content.Settings.OpenDropdown is not null)
+        {
+            _content.Settings.CloseList();
+            Render();
+            return;
+        }
+        Close();
     }
 
     public void OnDeactivated() => Close();
@@ -193,6 +280,7 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
             ScheduleClock();
             return;
         }
+        if (id == ExpiryTimer) _window?.KillTimer(ExpiryTimer);
         Render();
     }
 
