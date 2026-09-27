@@ -11,12 +11,21 @@ public sealed class HistoryStore
 {
     private readonly Func<string?> _read;
     private readonly Action<string> _write;
+    private readonly Func<UsageHistory, string> _serialize;
     private string? _lastWritten;
+    private UsageHistory? _lastSavedHistory;
+    private long _lastSavedVersion = -1;
 
     public HistoryStore(Func<string?> read, Action<string> write)
+        : this(read, write, HistoryFile.Write)
+    {
+    }
+
+    public HistoryStore(Func<string?> read, Action<string> write, Func<UsageHistory, string> serialize)
     {
         _read = read;
         _write = write;
+        _serialize = serialize;
     }
 
     public static HistoryStore ForDefaultPath() =>
@@ -54,22 +63,35 @@ public sealed class HistoryStore
     /// </summary>
     public void Save(UsageHistory history)
     {
+        var version = history.Version;
+        if (ReferenceEquals(history, _lastSavedHistory) && version == _lastSavedVersion) return;
+
         string content;
         try
         {
-            content = HistoryFile.Write(history);
+            content = _serialize(history);
         }
         catch (Exception)
         {
             return;
         }
 
-        if (string.Equals(content, _lastWritten, StringComparison.Ordinal)) return;
+        if (string.Equals(content, _lastWritten, StringComparison.Ordinal))
+        {
+            _lastSavedHistory = history;
+            _lastSavedVersion = version;
+            return;
+        }
 
         try
         {
             _write(content);
             _lastWritten = content;
+            if (history.Version == version)
+            {
+                _lastSavedHistory = history;
+                _lastSavedVersion = version;
+            }
         }
         catch (Exception)
         {

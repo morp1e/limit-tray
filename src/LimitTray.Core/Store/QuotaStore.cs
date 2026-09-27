@@ -13,9 +13,22 @@ public sealed class QuotaStore
 
     private readonly Dictionary<string, QuotaSnapshot> _snapshots = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _clock;
+    private readonly Func<string, TimeSpan> _staleAfter;
     private readonly object _gate = new();
 
-    public QuotaStore(Func<DateTimeOffset> clock) => _clock = clock;
+    public QuotaStore(Func<DateTimeOffset> clock, Func<string, TimeSpan>? staleAfter = null)
+    {
+        _clock = clock;
+        _staleAfter = staleAfter ?? (_ => StaleAfter);
+    }
+
+    public static TimeSpan StaleAfterFor(string provider, int refreshSeconds)
+    {
+        if (string.Equals(provider, "codex", StringComparison.OrdinalIgnoreCase))
+            return TimeSpan.FromMinutes(25);
+
+        return TimeSpan.FromSeconds(Math.Max(StaleAfter.TotalSeconds, refreshSeconds * 2.5));
+    }
 
     public event Action<QuotaSnapshot>? Changed;
 
@@ -67,7 +80,7 @@ public sealed class QuotaStore
             foreach (var (provider, snapshot) in _snapshots.ToList())
             {
                 if (snapshot.Health != HealthState.Fresh) continue;
-                if (now - snapshot.FetchedAt < StaleAfter) continue;
+                if (now - snapshot.FetchedAt < _staleAfter(provider)) continue;
 
                 var stale = snapshot with { Health = HealthState.Stale };
                 _snapshots[provider] = stale;

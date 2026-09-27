@@ -29,6 +29,13 @@ public sealed class UsageHistory
 
     private readonly Dictionary<SeriesKey, Series> _series = new();
     private readonly object _gate = new();
+    private long _version;
+
+    /// <summary>Increments whenever an observation or import changes the stored history.</summary>
+    public long Version
+    {
+        get { lock (_gate) return _version; }
+    }
 
     private readonly record struct SeriesKey(string Provider, WindowKind Kind);
 
@@ -50,14 +57,15 @@ public sealed class UsageHistory
 
         lock (_gate)
         {
-            Record(snapshot.Provider, WindowKind.Session, snapshot.Session, snapshot.FetchedAt);
-            Record(snapshot.Provider, WindowKind.Weekly, snapshot.Weekly, snapshot.FetchedAt);
+            var changed = Record(snapshot.Provider, WindowKind.Session, snapshot.Session, snapshot.FetchedAt);
+            changed |= Record(snapshot.Provider, WindowKind.Weekly, snapshot.Weekly, snapshot.FetchedAt);
+            if (changed) _version++;
         }
     }
 
-    private void Record(string provider, WindowKind kind, QuotaWindow? window, DateTimeOffset at)
+    private bool Record(string provider, WindowKind kind, QuotaWindow? window, DateTimeOffset at)
     {
-        if (window is null) return;
+        if (window is null) return false;
 
         var key = new SeriesKey(provider, kind);
         if (!_series.TryGetValue(key, out var series))
@@ -79,13 +87,14 @@ public sealed class UsageHistory
                  nextReset > previousReset + TimeSpan.FromMinutes(1));
 
             if (rolledOver) series.Samples.Clear();
-            else if (at <= last.At) return; // duplicate or out of order; no new information
+            else if (at <= last.At) return false; // duplicate or out of order; no new information
         }
 
         series.Samples.Add(new UsageSample(at, window.Percent));
         series.WindowLength = window.WindowLength;
         series.ResetsAt = window.ResetsAt;
         Trim(series, at);
+        return true;
     }
 
     private static void Trim(Series series, DateTimeOffset now)
@@ -246,6 +255,7 @@ public sealed class UsageHistory
             if (stored.Samples.Count > MaxSamples)
                 stored.Samples.RemoveRange(0, stored.Samples.Count - MaxSamples);
             _series[new SeriesKey(series.Provider, series.Kind)] = stored;
+            _version++;
         }
     }
 }

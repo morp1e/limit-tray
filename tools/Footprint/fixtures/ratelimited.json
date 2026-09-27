@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "snapshots": [
+    { "provider": "claude", "health": "Fresh", "ageSeconds": 600, "detail": null,
+      "session": { "percent": 18, "resetsInMinutes": 287, "windowMinutes": 300 },
+      "weekly": { "percent": 30, "resetsInMinutes": 5680, "windowMinutes": 10080 } },
+    { "provider": "claude", "health": "RateLimited", "ageSeconds": 0, "detail": "HTTP 429" },
+    { "provider": "codex", "health": "Fresh", "ageSeconds": 0, "detail": null,
+      "session": { "percent": 18, "resetsInMinutes": 26, "windowMinutes": 300 },
+      "weekly": { "percent": 22, "resetsInMinutes": 7000, "windowMinutes": 10080 } }
+  ],
+  "history": [
+    { "provider": "claude", "kind": "Session", "windowMinutes": 300, "resetsInMinutes": 287,
+      "samples": [[60, 12], [45, 14], [30, 15], [15, 17], [0, 18]] }
+  ]
+}
