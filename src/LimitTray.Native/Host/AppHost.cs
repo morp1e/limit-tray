@@ -81,7 +81,7 @@ internal sealed class AppHost : IAppActions, IDisposable
         if (_currentIcon == HICON.Null) _currentIcon = applicationIcon;
         _tray = new TrayIcon(_window, _currentIcon,
             QuotaFormatter.Tooltip(Array.Empty<QuotaSnapshot>(), DateTimeOffset.Now, _strings));
-        _popup = new PopupController(this);
+        _popup = new PopupController(this, _tray.GetIconRect);
         if (_popup is PopupController controller)
             controller.GraphicsFailed += OnGraphicsFailed;
         _menu = new TrayMenu(_window, () => _strings, () => StartupEnabled, SetStartup,

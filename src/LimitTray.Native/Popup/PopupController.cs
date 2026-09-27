@@ -29,7 +29,14 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
     private RECT _workArea;
     private bool _animating;
 
-    public PopupController(IAppActions app) => _app = app;
+    private readonly Func<RECT?>? _trayIconRect;
+
+    /// <param name="trayIconRect">The tray icon's screen rectangle, for the reopen guard.</param>
+    public PopupController(IAppActions app, Func<RECT?>? trayIconRect = null)
+    {
+        _app = app;
+        _trayIconRect = trayIconRect;
+    }
 
     /// <summary>Raised when the graphics stack cannot be created; the host tells the user.</summary>
     public event Action? GraphicsFailed;
@@ -75,6 +82,12 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         _renderer = null;
         _content = null;
         _animating = false;
+
+        // The native resources are gone; the managed garbage from drawing (layout strings,
+        // lists) would otherwise wait for the next natural GC, which in a process this quiet
+        // can be a long time. Measured: after-close memory varied 1.7 to 3.6 MB above the idle
+        // floor without this. One compacting collection per close is a few milliseconds.
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
     }
 
     public void OnDataChanged()
@@ -305,10 +318,22 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
     public void OnDeactivated()
     {
         if (!IsOpen) return;
-        // Only a click on the taskbar (where the tray icon is) arms the reopen guard; a click
-        // on any other window followed quickly by a tray click must still open the popup.
-        if (PointerOverTaskbar()) _deactivatedAt = Environment.TickCount64;
+        // Only a click on the tray icon itself arms the reopen guard; a click anywhere else
+        // (another window, Start, a taskbar button) followed by a tray click must still open.
+        if (PointerOverTrayIcon()) _deactivatedAt = Environment.TickCount64;
         Close();
+    }
+
+    /// <summary>
+    /// The icon's own rectangle when the shell reports it; otherwise the notification area
+    /// windows, as a narrower fallback than the whole taskbar.
+    /// </summary>
+    private bool PointerOverTrayIcon()
+    {
+        if (!PInvoke.GetCursorPos(out var cursor)) return false;
+        if (_trayIconRect?.Invoke() is { } icon)
+            return cursor.X >= icon.left && cursor.X < icon.right && cursor.Y >= icon.top && cursor.Y < icon.bottom;
+        return PointerOverTaskbar();
     }
 
     private static readonly string[] TaskbarClasses =

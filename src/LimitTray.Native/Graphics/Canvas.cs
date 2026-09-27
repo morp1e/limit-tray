@@ -47,6 +47,20 @@ internal sealed unsafe class Canvas : IDisposable, Ui.ITextMeasure
         if (target == null) throw new InvalidOperationException("CreateDCRenderTarget returned no target");
         _target = target;
 
+        try
+        {
+            Initialise(surface);
+        }
+        catch
+        {
+            // The caller never receives a half-built canvas, so release what was acquired here.
+            Dispose();
+            throw;
+        }
+    }
+
+    private void Initialise(Surface surface)
+    {
         var bounds = new RECT { left = 0, top = 0, right = surface.Width, bottom = surface.Height };
         _target->BindDC(surface.Dc, &bounds);
         // ClearType does not survive per-pixel alpha; v0.3 was grayscale too.
@@ -67,7 +81,7 @@ internal sealed unsafe class Canvas : IDisposable, Ui.ITextMeasure
             miterLimit = 10,
         };
         ID2D1StrokeStyle* round;
-        factory.D2D->CreateStrokeStyle(&strokeProps, null, 0, &round);
+        _factory.D2D->CreateStrokeStyle(&strokeProps, null, 0, &round);
         _round = round;
     }
 
@@ -80,7 +94,7 @@ internal sealed unsafe class Canvas : IDisposable, Ui.ITextMeasure
     }
 
     /// <summary>Ends a drawing pass so the pixels can be read or blurred.</summary>
-    public void End() => _target->EndDraw(null, null);
+    public void End() => _target->EndDraw(null, null).ThrowOnFailure();
 
     public void Clear()
     {
