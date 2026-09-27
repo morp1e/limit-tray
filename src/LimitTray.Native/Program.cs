@@ -1,11 +1,7 @@
-using System.Globalization;
-using System.Runtime.InteropServices;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
-using LimitTray.Core.Presentation;
 using LimitTray.Native.Host;
-using LimitTray.Native.Tray;
 
 namespace LimitTray.Native;
 
@@ -18,11 +14,10 @@ internal static unsafe class Program
 
         var dataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "limit-tray");
-        using var instance = SingleInstance.TryAcquire(dataDirectory);
+        var commandLine = CommandLine.Parse(args, dataDirectory);
+        using var instance = SingleInstance.TryAcquire(commandLine.DataDirectory);
         if (instance is null) return 0;
 
-        using var window = new MessageWindow();
-        UiThread.Initialize(window);
         var module = PInvoke.GetModuleHandle((PCWSTR)null);
         var loadedIcon = PInvoke.LoadImage(
             (HINSTANCE)(nint)module.Value,
@@ -33,37 +28,9 @@ internal static unsafe class Program
             IMAGE_FLAGS.LR_DEFAULTSIZE | IMAGE_FLAGS.LR_SHARED);
         var icon = (HICON)(nint)loadedIcon.Value;
         if (icon == HICON.Null)
-            throw new InvalidOperationException("LoadImage failed: " + Marshal.GetLastPInvokeError());
+            return 1;
 
-        using var tray = new TrayIcon(window, icon, "Lim'it");
-        tray.RightClick += (x, y) => ShowExitMenu(window, x, y);
-        return MessageWindow.RunLoop();
-    }
-
-    private static void ShowExitMenu(MessageWindow window, int x, int y)
-    {
-        var menu = PInvoke.CreatePopupMenu();
-        if (menu == HMENU.Null) return;
-
-        try
-        {
-            var exit = Strings.ForCulture(CultureInfo.CurrentUICulture).Exit;
-            fixed (char* text = exit)
-                PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_STRING, 1, text);
-            PInvoke.SetForegroundWindow(window.Handle);
-            var command = PInvoke.TrackPopupMenu(
-                menu,
-                TRACK_POPUP_MENU_FLAGS.TPM_RETURNCMD | TRACK_POPUP_MENU_FLAGS.TPM_RIGHTBUTTON,
-                x,
-                y,
-                0,
-                window.Handle,
-                null);
-            if (command.Value == 1) PInvoke.PostQuitMessage(0);
-        }
-        finally
-        {
-            PInvoke.DestroyMenu(menu);
-        }
+        using var host = new AppHost(commandLine, icon);
+        return host.Run();
     }
 }

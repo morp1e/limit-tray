@@ -64,3 +64,8 @@ IDWriteFontCollection
 LoadCursor
 IDC_ARROW
 GetSysColor
+CopyIcon
+GetSystemMetricsForDpi
+GetDpiForSystem
+GetSystemMetrics
+WM_SETTINGCHANGE

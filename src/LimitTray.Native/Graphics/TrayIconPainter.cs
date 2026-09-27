@@ -25,10 +25,18 @@ internal sealed unsafe class TrayIconPainter : ITrayIconPainter
     private static readonly Colour Track = new(255, 255, 255, 70);
     private static readonly Colour MarkColour = new(200, 200, 200, 230);
 
+    /// <summary>Returns HICON.Null when the icon cannot be drawn; the host keeps the previous one.</summary>
     public HICON Paint(TrayIconModel model, int sizePx)
     {
-        using var surface = Draw(model, sizePx);
-        return ToIcon(surface);
+        try
+        {
+            using var surface = Draw(model, sizePx);
+            return ToIcon(surface);
+        }
+        catch (Exception)
+        {
+            return HICON.Null;
+        }
     }
 
     /// <summary>The icon's premultiplied pixels; the render command writes these to a PNG.</summary>

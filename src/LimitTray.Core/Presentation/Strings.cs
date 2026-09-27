@@ -61,6 +61,7 @@ public sealed class Strings
         ResetsBeforeFull = "resets before it fills",
         WarningNotificationTitle = "Lim'it - running low",
         WarningNotificationBody = "{0}, {1}: {2}",
+        GraphicsFailure = "The panel cannot be drawn on this system.",
         Refresh = "Refresh",
         Settings = "Settings",
         BackToPanel = "Back to panel",
@@ -132,6 +133,7 @@ public sealed class Strings
         ResetsBeforeFull = "dolmadan sıfırlanır",
         WarningNotificationTitle = "Lim'it - azalıyor",
         WarningNotificationBody = "{0}, {1}: {2}",
+        GraphicsFailure = "Panel bu sistemde çizilemiyor.",
         Refresh = "Yenile",
         Settings = "Ayarlar",
         BackToPanel = "Panele dön",
@@ -209,6 +211,8 @@ public sealed class Strings
     public required string ResetsBeforeFull { get; init; }
 
     public required string WarningNotificationTitle { get; init; }
+
+    public required string GraphicsFailure { get; init; }
 
     /// <summary>Provider title, window subtitle, percentage.</summary>
     public required string WarningNotificationBody { get; init; }
