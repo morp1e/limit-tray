@@ -105,6 +105,8 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
         Refresh();
         _window = new PopupWindow(this);
         Render();
+        // A failed first frame closes the popup inside Render; nothing is left to show.
+        if (_window is null) return;
         _window.Show();
         ScheduleClock();
     }
@@ -303,8 +305,27 @@ internal sealed unsafe class PopupController : IPopupController, IPopupInput
     public void OnDeactivated()
     {
         if (!IsOpen) return;
-        _deactivatedAt = Environment.TickCount64;
+        // Only a click on the taskbar (where the tray icon is) arms the reopen guard; a click
+        // on any other window followed quickly by a tray click must still open the popup.
+        if (PointerOverTaskbar()) _deactivatedAt = Environment.TickCount64;
         Close();
+    }
+
+    private static readonly string[] TaskbarClasses =
+        { "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland" };
+
+    private static bool PointerOverTaskbar()
+    {
+        if (!PInvoke.GetCursorPos(out var cursor)) return false;
+        var under = PInvoke.WindowFromPoint(cursor);
+        if (under.IsNull) return false;
+        var root = PInvoke.GetAncestor(under, GET_ANCESTOR_FLAGS.GA_ROOT);
+        Span<char> name = stackalloc char[64];
+        int length;
+        fixed (char* buffer = name) length = PInvoke.GetClassName(root.IsNull ? under : root, buffer, name.Length);
+        if (length <= 0) return false;
+        var className = new string(name[..length]);
+        return Array.IndexOf(TaskbarClasses, className) >= 0;
     }
 
     public void OnTimer(nuint id)

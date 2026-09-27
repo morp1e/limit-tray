@@ -40,8 +40,11 @@ internal sealed unsafe class Canvas : IDisposable, Ui.ITextMeasure
             dpiX = 96 * scale,
             dpiY = 96 * scale,
         };
-        ID2D1DCRenderTarget* target;
+        // CsWin32's struct methods throw on a failed HRESULT (generated code calls
+        // ThrowOnFailure); the null check keeps that true if a future generator stops doing so.
+        ID2D1DCRenderTarget* target = null;
         factory.D2D->CreateDCRenderTarget(&props, &target);
+        if (target == null) throw new InvalidOperationException("CreateDCRenderTarget returned no target");
         _target = target;
 
         var bounds = new RECT { left = 0, top = 0, right = surface.Width, bottom = surface.Height };

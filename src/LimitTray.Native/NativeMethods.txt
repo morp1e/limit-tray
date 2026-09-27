@@ -69,3 +69,6 @@ GetSystemMetricsForDpi
 GetDpiForSystem
 GetSystemMetrics
 WM_SETTINGCHANGE
+WindowFromPoint
+GetAncestor
+GetClassName
